@@ -103,6 +103,99 @@ export default function RiveAnimation() {
         stateMachines: ["State Machine 1"],
     });
 
+    // ======================
+    // CONFIGURABLE SETTINGS
+    // ======================
+
+    // Tilt Configuration
+    const tiltConfig = {
+        perspective: 1000,    // Higher = more dramatic 3D effect
+        rotateY: -35,         // Negative = facing left, Positive = facing right
+        rotateX: 0,           // Negative = leaning back, Positive = leaning forward
+        scale: 1.0            // Image size (1.0 = normal, 1.1 = slightly larger)
+    };
+
+    // Glow Configuration - Enhanced for glow-only effect
+    const glowConfig = {
+        // Inner glow (close to image edges)
+        innerGlow: {
+            color: 'rgba(255, 215, 0, 0.6)',  // Brighter inner glow
+            blur: 25,                         // px - inner glow spread
+            spread: 0                         // px - no spread for clean edges
+        },
+        // Middle glow
+        middleGlow: {
+            color: 'rgba(255, 215, 0, 0.4)',
+            blur: 50,
+            spread: 0
+        },
+        // Outer glow (soft halo)
+        outerGlow: {
+            color: 'rgba(255, 215, 0, 0.2)',
+            blur: 100,
+            spread: 0
+        },
+        // No inset glow since we're removing the frame
+        insetGlow: {
+            color: 'rgba(255, 215, 0, 0)',
+            blur: 0,
+            spread: 0
+        }
+    };
+
+    // Border Configuration - REMOVED (set to transparent/zero)
+    const borderConfig = {
+        width: 0,                           // No border
+        color: 'transparent',               // Transparent color
+        radius: 10                          // Keep some radius for the image itself
+    };
+
+    // Hover Effect Configuration
+    const hoverConfig = {
+        rotateY: -10,        // Less tilt on hover
+        rotateX: 3,          // Less vertical tilt on hover  
+        scale: 1.02,         // Slight zoom on hover
+        glowBoost: 1.5       // More glow boost on hover (1.5 = 50% brighter)
+    };
+
+    // Background Glow Configuration - Enhanced for glow-only
+    const backgroundGlowConfig = {
+        intensity: 0.4,      // Increased intensity for stronger glow
+        size: '95%',         // Slightly larger glow container
+        borderRadius: 15     // Match image borderRadius
+    };
+
+    // Filter Effects
+    const filterConfig = {
+        brightness: 1.1,     // 1.0 = normal, >1.0 = brighter
+        contrast: 1.1,       // 1.0 = normal, >1.0 = more contrast
+        saturate: 1.2        // 1.0 = normal, >1.0 = more saturated
+    };
+
+    const getTransform = (config) => {
+        return `perspective(${config.perspective}px) rotateY(${config.rotateY}deg) rotateX(${config.rotateX}deg) scale(${config.scale})`;
+    };
+
+    // Helper function to generate glow shadows
+    const getGlowShadow = (glowConfig, hoverMultiplier = 1) => {
+        const inner = glowConfig.innerGlow;
+        const middle = glowConfig.middleGlow;
+        const outer = glowConfig.outerGlow;
+        const inset = glowConfig.insetGlow;
+
+        return `
+      0 0 ${inner.blur * hoverMultiplier}px ${inner.spread}px ${inner.color},
+      0 0 ${middle.blur * hoverMultiplier}px ${middle.spread}px ${middle.color},
+      0 0 ${outer.blur * hoverMultiplier}px ${outer.spread}px ${outer.color},
+      inset 0 0 ${inset.blur * hoverMultiplier}px ${inset.spread}px ${inset.color}
+    `;
+    };
+
+    // Helper function to generate filters
+    const getFilters = () => {
+        return `brightness(${filterConfig.brightness}) contrast(${filterConfig.contrast}) saturate(${filterConfig.saturate})`;
+    };
+
 
     // Add this signout handler function
     const handleSignOut = async () => {
@@ -198,86 +291,86 @@ export default function RiveAnimation() {
     };
 
 
-useEffect(() => {
-  const initializeData = async () => {
-    try {
-      console.log('📥 Loading initial data...');
-      setIsLoading(true);
-      
-      // Load all data in parallel for better performance
-      const [total, goal, recent, allDonationsData] = await Promise.all([
-        DonationsService.getTotalAmount(),
-        DonationsService.getCurrentGoal(),
-        DonationsService.getRecentDonations(5),
-        DonationsService.getAllDonations()
-      ]);
-      
-      setTotalMoney(total);
-      setCurrentGoal(parseFloat(goal.target_amount));
-      setDonationHistory(recent);
-      setAllDonations(allDonationsData);
-      
-      console.log('✅ Initial data loaded successfully');
-      
-    } catch (error) {
-      console.error('❌ Error loading initial data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    useEffect(() => {
+        const initializeData = async () => {
+            try {
+                console.log('📥 Loading initial data...');
+                setIsLoading(true);
 
-  initializeData();
-}, []);
+                // Load all data in parallel for better performance
+                const [total, goal, recent, allDonationsData] = await Promise.all([
+                    DonationsService.getTotalAmount(),
+                    DonationsService.getCurrentGoal(),
+                    DonationsService.getRecentDonations(5),
+                    DonationsService.getAllDonations()
+                ]);
 
-useEffect(() => {
-  console.log('🎯 Setting up real-time subscription...');
-  
-  const subscription = DonationsService.subscribeToDonations(async (payload) => {
-    console.log('📡 Real-time event received:', payload);
-    
-    if (payload.eventType === 'INSERT' && payload.new) {
-      const donation = payload.new;
-      console.log('💰 New donation detected for real-time update');
-      
-      // Update stats immediately
-      try {
-        // Update total amount
-        const newTotal = await DonationsService.getTotalAmount();
-        setTotalMoney(newTotal);
-        
-        // Update recent donations
-        const newRecent = await DonationsService.getRecentDonations(5);
-        setDonationHistory(newRecent);
-        
-        // Update graph data
-        const newAllDonations = await DonationsService.getAllDonations();
-        setAllDonations(newAllDonations);
-        setGraphRefreshTrigger(prev => prev + 1);
-        
-        console.log('✅ Real-time stats updated');
-      } catch (error) {
-        console.error('❌ Error in real-time update:', error);
-      }
-      
-      // Handle animation for other users
-      const isOurOwnDonation = user && donation.user_email === user.email;
-      
-      if (!isOurOwnDonation && !isClimbing) {
-        console.log(`🎬 Playing remote animation: $${donation.amount}`);
-        const duration = (donation.amount * 3) / 5;
-        setCurrentDonation(donation.amount);
-        startClimbingAnimation(duration);
-      }
-    }
-  });
+                setTotalMoney(total);
+                setCurrentGoal(parseFloat(goal.target_amount));
+                setDonationHistory(recent);
+                setAllDonations(allDonationsData);
 
-  return () => {
-    console.log('🧹 Cleaning up real-time subscription');
-    if (subscription) {
-      DonationsService.unsubscribe(subscription);
-    }
-  };
-}, [user, isClimbing]);
+                console.log('✅ Initial data loaded successfully');
+
+            } catch (error) {
+                console.error('❌ Error loading initial data:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        initializeData();
+    }, []);
+
+    useEffect(() => {
+        console.log('🎯 Setting up real-time subscription...');
+
+        const subscription = DonationsService.subscribeToDonations(async (payload) => {
+            console.log('📡 Real-time event received:', payload);
+
+            if (payload.eventType === 'INSERT' && payload.new) {
+                const donation = payload.new;
+                console.log('💰 New donation detected for real-time update');
+
+                // Update stats immediately
+                try {
+                    // Update total amount
+                    const newTotal = await DonationsService.getTotalAmount();
+                    setTotalMoney(newTotal);
+
+                    // Update recent donations
+                    const newRecent = await DonationsService.getRecentDonations(5);
+                    setDonationHistory(newRecent);
+
+                    // Update graph data
+                    const newAllDonations = await DonationsService.getAllDonations();
+                    setAllDonations(newAllDonations);
+                    setGraphRefreshTrigger(prev => prev + 1);
+
+                    console.log('✅ Real-time stats updated');
+                } catch (error) {
+                    console.error('❌ Error in real-time update:', error);
+                }
+
+                // Handle animation for other users
+                const isOurOwnDonation = user && donation.user_email === user.email;
+
+                if (!isOurOwnDonation && !isClimbing) {
+                    console.log(`🎬 Playing remote animation: $${donation.amount}`);
+                    const duration = (donation.amount * 3) / 5;
+                    setCurrentDonation(donation.amount);
+                    startClimbingAnimation(duration);
+                }
+            }
+        });
+
+        return () => {
+            console.log('🧹 Cleaning up real-time subscription');
+            if (subscription) {
+                DonationsService.unsubscribe(subscription);
+            }
+        };
+    }, [user, isClimbing]);
 
     // Handle successful PayPal donation
     const handleDonationSuccess = async (amount, paypalDetails) => {
@@ -429,28 +522,114 @@ useEffect(() => {
 
                 </div>
 
-                {/* Fantasy Door Image - Right Side */}
+                {/* Fantasy Door Image - Glow Only (No Frame) */}
                 <div style={{
                     width: '35%',
                     minWidth: '400px',
                     position: 'relative',
                     background: '#2b0c5c',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
                 }}>
-                    <img
-                        src="/src/assets/door-stretching-into-fantasy-world.jpg"
-                        alt="Fantasy World Door"
-                        style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                            objectPosition: 'center',
-                            filter: 'brightness(0.9) contrast(1.1)',
-                            borderLeft: '3px solid rgba(255, 215, 0, 0.3)'
-                        }}
-                    />
 
-                    {/* Overlay to blend with animation */}
+                    {/* Enhanced Glow Container */}
+                    <div style={{
+                        position: 'relative',
+                        width: backgroundGlowConfig.size,
+                        height: backgroundGlowConfig.size,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        // Stronger background glow
+                        background: `radial-gradient(ellipse at center, 
+      rgba(255,215,0,${backgroundGlowConfig.intensity}) 0%, 
+      rgba(255,215,0,${backgroundGlowConfig.intensity * 0.5}) 50%, 
+      transparent 80%)`,
+                        borderRadius: `${backgroundGlowConfig.borderRadius}px`,
+                        padding: '30px' // More padding for glow space
+                    }}>
+
+                        {/* Main Door Image - No Border, Just Glow */}
+                        <img
+                            src="/src/assets/door-stretching-into-fantasy-world.jpg"
+                            alt="Fantasy World Door"
+                            style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                                objectPosition: 'center',
+                                // Configurable transform
+                                transform: getTransform(tiltConfig),
+                                // No border, just image with rounded corners
+                                borderRadius: `${borderConfig.radius}px`,
+                                border: 'none', // Explicitly no border
+                                // Enhanced glow-only effect
+                                boxShadow: getGlowShadow(glowConfig),
+                                // Configurable filters
+                                filter: getFilters(),
+                                // Smooth transitions
+                                transition: 'all 0.5s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                                // Enhanced hover effect - stronger glow
+                                const hoverTransform = getTransform({
+                                    ...tiltConfig,
+                                    rotateY: hoverConfig.rotateY,
+                                    rotateX: hoverConfig.rotateX,
+                                    scale: hoverConfig.scale
+                                });
+
+                                e.target.style.transform = hoverTransform;
+                                e.target.style.boxShadow = getGlowShadow(glowConfig, hoverConfig.glowBoost);
+                            }}
+                            onMouseLeave={(e) => {
+                                // Return to original state
+                                e.target.style.transform = getTransform(tiltConfig);
+                                e.target.style.boxShadow = getGlowShadow(glowConfig);
+                            }}
+                        />
+
+                        {/* Enhanced Glow Overlay */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '-20px', // Extend beyond image for glow
+                            left: '-20px',
+                            right: '-20px',
+                            bottom: '-20px',
+                            background: `radial-gradient(ellipse at center, 
+        transparent 20%, 
+        rgba(255,215,0,${backgroundGlowConfig.intensity * 0.3}) 60%, 
+        rgba(255,215,0,${backgroundGlowConfig.intensity * 0.1}) 100%)`,
+                            borderRadius: `${backgroundGlowConfig.borderRadius + 10}px`,
+                            pointerEvents: 'none',
+                            animation: 'pulse-glow 4s ease-in-out infinite'
+                        }} />
+
+                        {/* Floating Golden Particles */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '-10px',
+                            left: '-10px',
+                            right: '-10px',
+                            bottom: '-10px',
+                            background: `
+        radial-gradient(3px 3px at 10% 20%, rgba(255,215,0,0.9), transparent),
+        radial-gradient(3px 3px at 30% 80%, rgba(255,215,0,0.7), transparent),
+        radial-gradient(2px 2px at 50% 10%, rgba(255,215,0,0.8), transparent),
+        radial-gradient(2px 2px at 70% 60%, rgba(255,215,0,0.6), transparent),
+        radial-gradient(3px 3px at 90% 30%, rgba(255,215,0,0.9), transparent),
+        radial-gradient(2px 2px at 20% 70%, rgba(255,215,0,0.7), transparent)
+      `,
+                            borderRadius: `${backgroundGlowConfig.borderRadius + 5}px`,
+                            pointerEvents: 'none',
+                            animation: 'float 8s ease-in-out infinite'
+                        }} />
+
+                    </div>
+
+                    {/* Rest remains the same */}
                     <div style={{
                         position: 'absolute',
                         top: 0,
@@ -461,26 +640,7 @@ useEffect(() => {
                         pointerEvents: 'none'
                     }} />
 
-
-
-                    {/* Destination Text */}
-                    <div style={{
-                        position: 'absolute',
-                        bottom: '40px',
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        background: 'rgba(0, 0, 0, 0.7)',
-                        color: '#ffd93d',
-                        padding: '12px 20px',
-                        borderRadius: '8px',
-                        fontSize: '16px',
-                        fontWeight: 'bold',
-                        textAlign: 'center',
-                        border: '1px solid rgba(255, 215, 0, 0.3)',
-                        backdropFilter: 'blur(10px)'
-                    }}>
-                        🏰 Heaven Awaits
-                    </div>
+                   
                 </div>
             </div>
 
