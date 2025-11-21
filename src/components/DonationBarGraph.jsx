@@ -6,16 +6,7 @@ export default function DonationBarGraph({ isExpanded, refreshTrigger, allDonati
   const [donationData, setDonationData] = useState([]);
   const [timeRange, setTimeRange] = useState('24h'); // 24h, 7d, 30d, all
 
-  // Fetch donation data for the graph
-  useEffect(() => {
-    if (allDonations && allDonations.length > 0) {
-      console.log('📊 Processing graph data from props:', allDonations);
-      const processedData = processDonationData(allDonations, timeRange);
-      setDonationData(processedData);
-    }
-  }, [allDonations, timeRange, refreshTrigger]);
-
-  // Process donation data for the graph
+    // Process donation data for the graph
   const processDonationData = (donations, range) => {
     const now = new Date();
     let filteredDonations = donations;
@@ -89,6 +80,15 @@ export default function DonationBarGraph({ isExpanded, refreshTrigger, allDonati
 
     return days;
   };
+
+  // Fetch donation data for the graph
+  useEffect(() => {
+    if (allDonations && allDonations.length > 0) {
+      console.log('📊 Processing graph data from props:', allDonations);
+      const processedData = processDonationData(allDonations, timeRange);
+      setDonationData(processedData);
+    }
+  }, [allDonations, timeRange, refreshTrigger]);
 
   // Find max value for scaling
   const maxAmount = Math.max(...donationData.map(item => item.total), 1);

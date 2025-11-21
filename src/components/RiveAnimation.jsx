@@ -81,7 +81,7 @@ function PayPalDonationButton({ amount, onDonationSuccess, disabled }) {
 }
 
 export default function RiveAnimation() {
-    const { user } = useAuth();
+    const { user, signOut } = useAuth();
     const [totalMoney, setTotalMoney] = useState(0);
     const [currentGoal, setCurrentGoal] = useState(1000000000);
     const [isClimbing, setIsClimbing] = useState(false);
@@ -102,6 +102,18 @@ export default function RiveAnimation() {
         autoplay: true,
         stateMachines: ["State Machine 1"],
     });
+
+
+    // Add this signout handler function
+    const handleSignOut = async () => {
+        try {
+            await signOut();
+            console.log('👋 User signed out successfully');
+            // You can add any additional cleanup or redirect logic here
+        } catch (error) {
+            console.error('❌ Failed to sign out:', error);
+        }
+    };
 
     // Initialize Rive input
     useEffect(() => {
@@ -133,117 +145,117 @@ export default function RiveAnimation() {
     }, [rive]);
 
     // Load initial data and set up real-time subscriptions
-   useEffect(() => {
-  let donationsSubscription;
-  let goalsSubscription;
+    useEffect(() => {
+        let donationsSubscription;
+        let goalsSubscription;
 
-  const initializeData = async () => {
-    try {
-      setIsLoading(true);
-      
-      // Load total amount
-      const total = await DonationsService.getTotalAmount();
-      setTotalMoney(total);
-      
-      // Load current goal
-      const goal = await DonationsService.getCurrentGoal();
-      setCurrentGoal(parseFloat(goal.target_amount));
-      
-      // Load recent donations
-      const recent = await DonationsService.getRecentDonations(5);
-      setDonationHistory(recent);
-      
-      // Load ALL donations for the graph
-      const allDonationsData = await DonationsService.getAllDonations();
-      setAllDonations(allDonationsData);
-      
-    } catch (error) {
-      console.error('Error initializing data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+        const initializeData = async () => {
+            try {
+                setIsLoading(true);
 
-  initializeData();
+                // Load total amount
+                const total = await DonationsService.getTotalAmount();
+                setTotalMoney(total);
 
-  // Set up real-time subscription for donations
-  donationsSubscription = DonationsService.subscribeToDonations(async (payload) => {
-    console.log('📡 Real-time donation update received:', payload);
-    
-    if (payload.eventType === 'INSERT') {
-      console.log('🔄 New donation detected, refreshing all data...');
-      
-      // Refresh ALL data
-      const newTotal = await DonationsService.getTotalAmount();
-      setTotalMoney(newTotal);
-      
-      const newRecent = await DonationsService.getRecentDonations(5);
-      setDonationHistory(newRecent);
-      
-      const newAllDonations = await DonationsService.getAllDonations();
-      setAllDonations(newAllDonations);
-      
-      console.log('✅ All UI data updated with new donation');
-    }
-  });
+                // Load current goal
+                const goal = await DonationsService.getCurrentGoal();
+                setCurrentGoal(parseFloat(goal.target_amount));
 
-  // ... goals subscription remains the same
+                // Load recent donations
+                const recent = await DonationsService.getRecentDonations(5);
+                setDonationHistory(recent);
 
-  return () => {
-    if (donationsSubscription) {
-      DonationsService.unsubscribe(donationsSubscription);
-    }
-    if (goalsSubscription) {
-      DonationsService.unsubscribe(goalsSubscription);
-    }
-  };
-}, []);
+                // Load ALL donations for the graph
+                const allDonationsData = await DonationsService.getAllDonations();
+                setAllDonations(allDonationsData);
+
+            } catch (error) {
+                console.error('Error initializing data:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        initializeData();
+
+        // Set up real-time subscription for donations
+        donationsSubscription = DonationsService.subscribeToDonations(async (payload) => {
+            console.log('📡 Real-time donation update received:', payload);
+
+            if (payload.eventType === 'INSERT') {
+                console.log('🔄 New donation detected, refreshing all data...');
+
+                // Refresh ALL data
+                const newTotal = await DonationsService.getTotalAmount();
+                setTotalMoney(newTotal);
+
+                const newRecent = await DonationsService.getRecentDonations(5);
+                setDonationHistory(newRecent);
+
+                const newAllDonations = await DonationsService.getAllDonations();
+                setAllDonations(newAllDonations);
+
+                console.log('✅ All UI data updated with new donation');
+            }
+        });
+
+        // ... goals subscription remains the same
+
+        return () => {
+            if (donationsSubscription) {
+                DonationsService.unsubscribe(donationsSubscription);
+            }
+            if (goalsSubscription) {
+                DonationsService.unsubscribe(goalsSubscription);
+            }
+        };
+    }, []);
 
     // Handle successful PayPal donation
-   const handleDonationSuccess = async (amount, paypalDetails) => {
-  try {
-    console.log('💰 Donation success:', amount, paypalDetails);
-    setCurrentDonation(amount);
-    setDebugInfo(`Donation received: $${amount}`);
-    
-    // Save donation to database
-    const donationRecord = await DonationsService.addDonation(
-      amount, 
-      user?.id, 
-      user?.email
-    );
-    console.log('💾 Donation saved to DB:', donationRecord);
-    
-    // FORCE REFRESH ALL DATA IMMEDIATELY
-    console.log('🔄 Force refreshing ALL UI data...');
-    
-    // Refresh total amount
-    const newTotal = await DonationsService.getTotalAmount();
-    setTotalMoney(newTotal);
-    
-    // Refresh recent donations
-    const newRecent = await DonationsService.getRecentDonations(5);
-    setDonationHistory(newRecent);
-    setGraphRefreshTrigger(prev => prev + 1);
-    // Refresh ALL donations for graph
-    const newAllDonations = await DonationsService.getAllDonations();
-    setAllDonations(newAllDonations);
-    
-    console.log('✅ ALL UI data force refreshed');
-    
-    // Calculate animation duration
-    const stairsToClimb = amount;
-    const duration = (stairsToClimb * 3) / 5;
-    
-    console.log(`⏱️ Starting animation: ${stairsToClimb} stairs for ${duration} seconds`);
-    startClimbingAnimation(duration);
-    
-    
-  } catch (error) {
-    console.error('❌ Error processing donation:', error);
-    setDebugInfo(`Error: ${error.message}`);
-  }
-};
+    const handleDonationSuccess = async (amount, paypalDetails) => {
+        try {
+            console.log('💰 Donation success:', amount, paypalDetails);
+            setCurrentDonation(amount);
+            setDebugInfo(`Donation received: $${amount}`);
+
+            // Save donation to database
+            const donationRecord = await DonationsService.addDonation(
+                amount,
+                user?.id,
+                user?.email
+            );
+            console.log('💾 Donation saved to DB:', donationRecord);
+
+            // FORCE REFRESH ALL DATA IMMEDIATELY
+            console.log('🔄 Force refreshing ALL UI data...');
+
+            // Refresh total amount
+            const newTotal = await DonationsService.getTotalAmount();
+            setTotalMoney(newTotal);
+
+            // Refresh recent donations
+            const newRecent = await DonationsService.getRecentDonations(5);
+            setDonationHistory(newRecent);
+            setGraphRefreshTrigger(prev => prev + 1);
+            // Refresh ALL donations for graph
+            const newAllDonations = await DonationsService.getAllDonations();
+            setAllDonations(newAllDonations);
+
+            console.log('✅ ALL UI data force refreshed');
+
+            // Calculate animation duration
+            const stairsToClimb = amount;
+            const duration = (stairsToClimb * 3) / 5;
+
+            console.log(`⏱️ Starting animation: ${stairsToClimb} stairs for ${duration} seconds`);
+            startClimbingAnimation(duration);
+
+
+        } catch (error) {
+            console.error('❌ Error processing donation:', error);
+            setDebugInfo(`Error: ${error.message}`);
+        }
+    };
 
     const startClimbingAnimation = (duration) => {
         console.log('🎬 Starting climbing animation...');
@@ -405,7 +417,7 @@ export default function RiveAnimation() {
                         </div>
                     </div>
 
-                    
+
                 </div>
 
                 {/* Fantasy Door Image - Right Side */}
@@ -491,7 +503,7 @@ export default function RiveAnimation() {
                 </div>
 
                 {/* Sidebar Content */}
-                
+
                 {isSidebarExpanded && (
                     <div style={{
                         flex: 1,
@@ -537,20 +549,48 @@ export default function RiveAnimation() {
                         </div>
 
                         {/* Bar Graph */}
-                        <DonationBarGraph isExpanded={isSidebarExpanded} 
-                        refreshTrigger={graphRefreshTrigger} 
-                        allDonations={allDonations} />
+                        <DonationBarGraph isExpanded={isSidebarExpanded}
+                            refreshTrigger={graphRefreshTrigger}
+                            allDonations={allDonations} />
 
-                        {/* User Info */}
+                        {/* User Info with Signout Button */}
                         {user && (
                             <div style={{
                                 background: 'rgba(107, 207, 127, 0.1)',
-                                padding: '10px',
-                                borderRadius: '8px',
-                                border: '1px solid rgba(107, 207, 127, 0.3)'
+                                padding: '15px',
+                                borderRadius: '10px',
+                                border: '1px solid rgba(107, 207, 127, 0.3)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '10px'
                             }}>
-                                <div style={{ color: '#6bcf7f', fontSize: '11px', fontWeight: 'bold' }}>
-                                    👤 Logged in as:
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ color: '#6bcf7f', fontSize: '11px', fontWeight: 'bold' }}>
+                                        👤 Logged in as:
+                                    </div>
+                                    <button
+                                        onClick={handleSignOut}
+                                        style={{
+                                            background: 'rgba(255, 107, 107, 0.2)',
+                                            color: '#ff6b6b',
+                                            border: '1px solid rgba(255, 107, 107, 0.3)',
+                                            borderRadius: '5px',
+                                            padding: '4px 8px',
+                                            fontSize: '10px',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.3s ease'
+                                        }}
+                                        onMouseOver={(e) => {
+                                            e.target.style.background = 'rgba(255, 107, 107, 0.3)';
+                                            e.target.style.color = '#ff8e8e';
+                                        }}
+                                        onMouseOut={(e) => {
+                                            e.target.style.background = 'rgba(255, 107, 107, 0.2)';
+                                            e.target.style.color = '#ff6b6b';
+                                        }}
+                                    >
+                                        Sign Out
+                                    </button>
                                 </div>
                                 <div style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '10px', wordBreak: 'break-all' }}>
                                     {user.email}
@@ -595,7 +635,7 @@ export default function RiveAnimation() {
                             </div>
                         </div>
 
-                       
+
                     </div>
                 )}
 
