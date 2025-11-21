@@ -2,33 +2,18 @@
 import React, { useState, useEffect } from 'react';
 import { DonationsService } from '../lib/donationsService';
 
-export default function DonationBarGraph({ isExpanded, refreshTrigger }) {
+export default function DonationBarGraph({ isExpanded, refreshTrigger, allDonations  }) {
   const [donationData, setDonationData] = useState([]);
   const [timeRange, setTimeRange] = useState('24h'); // 24h, 7d, 30d, all
 
   // Fetch donation data for the graph
   useEffect(() => {
-    let subscription;
-
-     const fetchGraphData = async () => {
-      try {
-        console.log('📊 Fetching graph data...');
-        const donations = await DonationsService.getAllDonations();
-        console.log('📊 Raw donations from DB:', donations);
-        
-        // Process data based on time range
-        const processedData = processDonationData(donations, timeRange);
-        console.log('📊 Processed graph data:', processedData);
-        setDonationData(processedData);
-      } catch (error) {
-        console.error('Error fetching graph data:', error);
-      }
-    };
-
-    fetchGraphData();
-
-    // REMOVED: Real-time subscription - we'll refresh via refreshTrigger
-  }, [timeRange, refreshTrigger]); 
+    if (allDonations && allDonations.length > 0) {
+      console.log('📊 Processing graph data from props:', allDonations);
+      const processedData = processDonationData(allDonations, timeRange);
+      setDonationData(processedData);
+    }
+  }, [allDonations, timeRange, refreshTrigger]);
 
   // Process donation data for the graph
   const processDonationData = (donations, range) => {

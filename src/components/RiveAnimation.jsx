@@ -537,7 +537,9 @@ export default function RiveAnimation() {
                         </div>
 
                         {/* Bar Graph */}
-                        <DonationBarGraph isExpanded={isSidebarExpanded} refreshTrigger={graphRefreshTrigger} />
+                        <DonationBarGraph isExpanded={isSidebarExpanded} 
+                        refreshTrigger={graphRefreshTrigger} 
+                        allDonations={allDonations} />
 
                         {/* User Info */}
                         {user && (

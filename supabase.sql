@@ -1,185 +1,119 @@
--- COMPLETE COSMICFIRE DATABASE SETUP - FIXED VERSION
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- =============================================
+-- COMPLETE DATABASE SETUP FOR COSMIC FIRE
+-- Run this after database reset
+-- =============================================
 
--- Drop tables if they exist
-DROP TABLE IF EXISTS user_messages CASCADE;
-DROP TABLE IF EXISTS chat_messages CASCADE;
-DROP TABLE IF EXISTS user_profiles CASCADE;
-
--- Create user_profiles table
-CREATE TABLE user_profiles (
-  id UUID PRIMARY KEY,
-  email TEXT NOT NULL UNIQUE,
-  online BOOLEAN DEFAULT false,
-  last_seen TIMESTAMPTZ DEFAULT NOW(),
-  current_position JSONB DEFAULT '{"x": 50, "y": 50}',
-  color TEXT DEFAULT '#ffffff',
-  created_at TIMESTAMPTZ DEFAULT NOW()
+-- Create donations table WITHOUT strict foreign key constraint
+CREATE TABLE IF NOT EXISTS donations (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID, -- Made optional, no REFERENCES constraint
+    amount DECIMAL(10,2) NOT NULL,
+    user_email TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create chat_messages table
-CREATE TABLE chat_messages (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
-  sender_email TEXT NOT NULL,
-  content TEXT NOT NULL,
-  type TEXT DEFAULT 'message',
-  visible_until TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Create user_messages table for rate limiting
-CREATE TABLE user_messages (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
-  content TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Create indexes for better performance
-CREATE INDEX idx_user_profiles_online ON user_profiles(online);
-CREATE INDEX idx_user_profiles_last_seen ON user_profiles(last_seen);
-CREATE INDEX idx_chat_messages_created_at ON chat_messages(created_at);
-CREATE INDEX idx_chat_messages_visible_until ON chat_messages(visible_until);
-CREATE INDEX idx_user_messages_user_created ON user_messages(user_id, created_at);
-
--- SIMPLE WORKING POSITION FUNCTION
-CREATE OR REPLACE FUNCTION get_or_assign_user_position(
-  user_id UUID,
-  user_email TEXT
-)
-RETURNS JSONB AS $$
-DECLARE
-  current_pos JSONB;
-  min_radius FLOAT := 20.0;
-  max_radius FLOAT := 45.0;
-  angle FLOAT;
-  distance FLOAT;
-  new_x FLOAT;
-  new_y FLOAT;
-BEGIN
-  -- Check if user already has a VALID position (not center)
-  SELECT current_position INTO current_pos
-  FROM user_profiles 
-  WHERE id = user_id 
-  AND current_position IS NOT NULL 
-  AND (current_position ->> 'x')::FLOAT != 50 
-  AND (current_position ->> 'y')::FLOAT != 50;
-  
-  -- If valid position exists, return it
-  IF current_pos IS NOT NULL THEN
-    RETURN current_pos;
-  END IF;
-  
-  -- Generate random position that's not too close to center
-  angle := random() * 2 * pi();
-  distance := min_radius + (random() * (max_radius - min_radius));
-  new_x := 50 + (distance * cos(angle));
-  new_y := 50 + (distance * sin(angle));
-  
-  -- Ensure positions are within reasonable bounds
-  new_x := GREATEST(15, LEAST(85, new_x));
-  new_y := GREATEST(15, LEAST(85, new_y));
-  
-  current_pos := jsonb_build_object('x', new_x, 'y', new_y);
-  
-  -- Permanently save the position
-  UPDATE user_profiles 
-  SET current_position = current_pos
-  WHERE id = user_id;
-  
-  RETURN current_pos;
-END;
-$$ LANGUAGE plpgsql;
-
--- Function to check if user can send message
--- Update rate limit to 8 seconds for testing
-CREATE OR REPLACE FUNCTION can_send_message(user_uuid UUID)
-RETURNS BOOLEAN AS $$
-DECLARE
-  last_message_time TIMESTAMPTZ;
-  rate_limit_seconds INTEGER := 8; -- Changed from 30 minutes to 8 seconds
-BEGIN
-  -- Get the most recent message time for this user
-  SELECT created_at INTO last_message_time
-  FROM user_messages 
-  WHERE user_id = user_uuid 
-  ORDER BY created_at DESC 
-  LIMIT 1;
-  
-  -- If no previous messages, allow sending
-  IF last_message_time IS NULL THEN
-    RETURN TRUE;
-  END IF;
-  
-  -- Check if enough time has passed (8 seconds now)
-  RETURN EXTRACT(EPOCH FROM (NOW() - last_message_time)) > rate_limit_seconds;
-END;
-$$ LANGUAGE plpgsql;
-
-
--- Function to mark user offline
-CREATE OR REPLACE FUNCTION mark_user_offline(user_id UUID)
-RETURNS void AS $$
-BEGIN
-  UPDATE user_profiles 
-  SET online = false, last_seen = NOW()
-  WHERE id = user_id;
-END;
-$$ LANGUAGE plpgsql;
+-- Create index for faster queries
+CREATE INDEX IF NOT EXISTS donations_user_id_idx ON donations(user_id);
+CREATE INDEX IF NOT EXISTS donations_created_at_idx ON donations(created_at);
 
 -- Enable Row Level Security
-ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE donations ENABLE ROW LEVEL SECURITY;
 
--- Drop existing policies if any
-DROP POLICY IF EXISTS "Allow all operations for all users" ON user_profiles;
-DROP POLICY IF EXISTS "Allow all operations for all users" ON chat_messages;
-DROP POLICY IF EXISTS "Allow all operations for all users" ON user_messages;
+-- Create policies
+-- Anyone can insert donations
+CREATE POLICY "Anyone can insert donations" ON donations
+    FOR INSERT WITH CHECK (true);
 
--- Create policies (allow public access for this demo app)
-CREATE POLICY "Allow all operations for all users" ON user_profiles
+-- Anyone can read donations
+CREATE POLICY "Anyone can read donations" ON donations
+    FOR SELECT USING (true);
+
+-- Only authenticated users can update their own donations
+CREATE POLICY "Users can update own donations" ON donations
+    FOR UPDATE USING (auth.uid() = user_id);
+
+-- Create function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Create trigger to automatically update updated_at
+CREATE TRIGGER update_donations_updated_at BEFORE UPDATE ON donations
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Create goals table to store configurable goals
+CREATE TABLE IF NOT EXISTS goals (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    goal_name TEXT NOT NULL DEFAULT 'default',
+    target_amount DECIMAL(15,2) NOT NULL DEFAULT 1000000000.00,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(goal_name)
+);
+
+-- Insert default goal
+INSERT INTO goals (goal_name, target_amount) 
+VALUES ('default', 1000000000.00)
+ON CONFLICT (goal_name) DO NOTHING;
+
+-- Enable Row Level Security for goals
+ALTER TABLE goals ENABLE ROW LEVEL SECURITY;
+
+-- Anyone can read goals
+CREATE POLICY "Anyone can read goals" ON goals
+    FOR SELECT USING (true);
+
+-- Only authenticated users can update goals
+CREATE POLICY "Authenticated users can update goals" ON goals
+    FOR UPDATE USING (auth.role() = 'authenticated');
+
+-- Create trigger for goals updated_at
+CREATE TRIGGER update_goals_updated_at BEFORE UPDATE ON goals
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+-- Ensure real-time is enabled for donations table
+ALTER PUBLICATION supabase_realtime ADD TABLE donations;
+ALTER PUBLICATION supabase_realtime ADD TABLE goals;
+
+-- Update RLS policies to be more permissive for real-time
+DROP POLICY IF EXISTS "Anyone can insert donations" ON donations;
+DROP POLICY IF EXISTS "Anyone can read donations" ON donations;
+DROP POLICY IF EXISTS "Users can update own donations" ON donations;
+
+-- Recreate simpler policies for real-time to work properly
+CREATE POLICY "Enable all operations for donations" ON donations
 FOR ALL USING (true);
 
-CREATE POLICY "Allow all operations for all users" ON chat_messages
+CREATE POLICY "Enable all operations for goals" ON goals
 FOR ALL USING (true);
 
-CREATE POLICY "Allow all operations for all users" ON user_messages
-FOR ALL USING (true);
 
--- Enable real-time for tables
-ALTER PUBLICATION supabase_realtime ADD TABLE user_profiles;
-ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;
 
--- Insert some test users (optional)
--- INSERT INTO user_profiles (id, email, online, color) VALUES 
--- ('11111111-1111-1111-1111-111111111111', 'test1@example.com', true, '#ff6b6b'),
--- ('22222222-2222-2222-2222-222222222222', 'test2@example.com', true, '#4ecdc4');
 
--- Verify tables were created
-SELECT 
-  table_name, 
-  table_type
-FROM information_schema.tables 
-WHERE table_schema = 'public'
-ORDER BY table_name;
+
+-- Enable real-time for donations table
+BEGIN;
+  -- Drop existing publication if any
+  DROP PUBLICATION IF EXISTS supabase_realtime CASCADE;
+  
+  -- Create publication
+  CREATE PUBLICATION supabase_realtime;
+  
+  -- Add tables to publication
+  ALTER PUBLICATION supabase_realtime ADD TABLE donations;
+  ALTER PUBLICATION supabase_realtime ADD TABLE goals;
+COMMIT;
 
 -- Verify real-time is enabled
-SELECT 
-  schemaname,
-  tablename
-FROM pg_publication_tables 
-WHERE pubname = 'supabase_realtime';
+SELECT * FROM pg_publication WHERE pubname = 'supabase_realtime';
+SELECT * FROM pg_publication_tables WHERE pubname = 'supabase_realtime';
 
 
-SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';
-
--- Check if user_messages table has data
-SELECT * FROM user_messages LIMIT 5;
-
--- Check if chat_messages table has data  
-SELECT * FROM chat_messages LIMIT 5;
-
-SELECT id, email, online FROM user_profiles WHERE email = 'greenychad@gmail.com';
+-- Check total amount
+SELECT SUM(amount) as total_raised FROM donations;
