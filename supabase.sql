@@ -76,11 +76,6 @@ CREATE POLICY "Authenticated users can update goals" ON goals
 CREATE TRIGGER update_goals_updated_at BEFORE UPDATE ON goals
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-
--- Ensure real-time is enabled for donations table
-ALTER PUBLICATION supabase_realtime ADD TABLE donations;
-ALTER PUBLICATION supabase_realtime ADD TABLE goals;
-
 -- Update RLS policies to be more permissive for real-time
 DROP POLICY IF EXISTS "Anyone can insert donations" ON donations;
 DROP POLICY IF EXISTS "Anyone can read donations" ON donations;
@@ -110,10 +105,7 @@ BEGIN;
   ALTER PUBLICATION supabase_realtime ADD TABLE goals;
 COMMIT;
 
--- Verify real-time is enabled
-SELECT * FROM pg_publication WHERE pubname = 'supabase_realtime';
-SELECT * FROM pg_publication_tables WHERE pubname = 'supabase_realtime';
-
 
 -- Check total amount
 SELECT SUM(amount) as total_raised FROM donations;
+

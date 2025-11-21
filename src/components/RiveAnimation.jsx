@@ -144,72 +144,140 @@ export default function RiveAnimation() {
         }
     }, [rive]);
 
-    // Load initial data and set up real-time subscriptions
-    useEffect(() => {
-        let donationsSubscription;
-        let goalsSubscription;
+    const startClimbingAnimation = (duration) => {
+        console.log('🎬 Starting climbing animation...');
 
-        const initializeData = async () => {
-            try {
-                setIsLoading(true);
+        if (!directionInputRef.current) {
+            console.log('❌ No direction input reference');
+            setDebugInfo('No direction input reference');
+            return;
+        }
 
-                // Load total amount
-                const total = await DonationsService.getTotalAmount();
-                setTotalMoney(total);
+        console.log('🎯 Setting direction to 1');
+        setIsClimbing(true);
 
-                // Load current goal
-                const goal = await DonationsService.getCurrentGoal();
-                setCurrentGoal(parseFloat(goal.target_amount));
+        try {
+            // Start climbing
+            directionInputRef.current.value = 1;
+            console.log('✅ Direction set to 1');
+            setDebugInfo(`Climbing ${currentDonation} stairs for ${duration}s`);
 
-                // Load recent donations
-                const recent = await DonationsService.getRecentDonations(5);
-                setDonationHistory(recent);
+            // Stop after duration
+            setTimeout(() => {
+                console.log('🛑 Setting direction to 0');
+                directionInputRef.current.value = 0;
+                setIsClimbing(false);
+                setCurrentDonation(0);
+                setDebugInfo('Animation completed');
+                console.log('✅ Direction set to 0');
+            }, duration * 1000);
 
-                // Load ALL donations for the graph
-                const allDonationsData = await DonationsService.getAllDonations();
-                setAllDonations(allDonationsData);
+        } catch (error) {
+            console.error('❌ Error controlling animation:', error);
+            setDebugInfo(`Animation error: ${error.message}`);
+        }
+    };
 
-            } catch (error) {
-                console.error('Error initializing data:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
+    // Format large numbers with commas
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(amount);
+    };
 
-        initializeData();
+    // Format percentage
+    const formatPercentage = (current, goal) => {
+        const percentage = (current / goal) * 100;
+        return Math.min(percentage, 100).toFixed(6);
+    };
 
-        // Set up real-time subscription for donations
-        donationsSubscription = DonationsService.subscribeToDonations(async (payload) => {
-            console.log('📡 Real-time donation update received:', payload);
+    const formatDonationTime = (timestamp) => {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
 
-            if (payload.eventType === 'INSERT') {
-                console.log('🔄 New donation detected, refreshing all data...');
 
-                // Refresh ALL data
-                const newTotal = await DonationsService.getTotalAmount();
-                setTotalMoney(newTotal);
+useEffect(() => {
+  const initializeData = async () => {
+    try {
+      console.log('📥 Loading initial data...');
+      setIsLoading(true);
+      
+      // Load all data in parallel for better performance
+      const [total, goal, recent, allDonationsData] = await Promise.all([
+        DonationsService.getTotalAmount(),
+        DonationsService.getCurrentGoal(),
+        DonationsService.getRecentDonations(5),
+        DonationsService.getAllDonations()
+      ]);
+      
+      setTotalMoney(total);
+      setCurrentGoal(parseFloat(goal.target_amount));
+      setDonationHistory(recent);
+      setAllDonations(allDonationsData);
+      
+      console.log('✅ Initial data loaded successfully');
+      
+    } catch (error) {
+      console.error('❌ Error loading initial data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-                const newRecent = await DonationsService.getRecentDonations(5);
-                setDonationHistory(newRecent);
+  initializeData();
+}, []);
 
-                const newAllDonations = await DonationsService.getAllDonations();
-                setAllDonations(newAllDonations);
+useEffect(() => {
+  console.log('🎯 Setting up real-time subscription...');
+  
+  const subscription = DonationsService.subscribeToDonations(async (payload) => {
+    console.log('📡 Real-time event received:', payload);
+    
+    if (payload.eventType === 'INSERT' && payload.new) {
+      const donation = payload.new;
+      console.log('💰 New donation detected for real-time update');
+      
+      // Update stats immediately
+      try {
+        // Update total amount
+        const newTotal = await DonationsService.getTotalAmount();
+        setTotalMoney(newTotal);
+        
+        // Update recent donations
+        const newRecent = await DonationsService.getRecentDonations(5);
+        setDonationHistory(newRecent);
+        
+        // Update graph data
+        const newAllDonations = await DonationsService.getAllDonations();
+        setAllDonations(newAllDonations);
+        setGraphRefreshTrigger(prev => prev + 1);
+        
+        console.log('✅ Real-time stats updated');
+      } catch (error) {
+        console.error('❌ Error in real-time update:', error);
+      }
+      
+      // Handle animation for other users
+      const isOurOwnDonation = user && donation.user_email === user.email;
+      
+      if (!isOurOwnDonation && !isClimbing) {
+        console.log(`🎬 Playing remote animation: $${donation.amount}`);
+        const duration = (donation.amount * 3) / 5;
+        setCurrentDonation(donation.amount);
+        startClimbingAnimation(duration);
+      }
+    }
+  });
 
-                console.log('✅ All UI data updated with new donation');
-            }
-        });
-
-        // ... goals subscription remains the same
-
-        return () => {
-            if (donationsSubscription) {
-                DonationsService.unsubscribe(donationsSubscription);
-            }
-            if (goalsSubscription) {
-                DonationsService.unsubscribe(goalsSubscription);
-            }
-        };
-    }, []);
+  return () => {
+    console.log('🧹 Cleaning up real-time subscription');
+    if (subscription) {
+      DonationsService.unsubscribe(subscription);
+    }
+  };
+}, [user, isClimbing]);
 
     // Handle successful PayPal donation
     const handleDonationSuccess = async (amount, paypalDetails) => {
@@ -255,65 +323,6 @@ export default function RiveAnimation() {
             console.error('❌ Error processing donation:', error);
             setDebugInfo(`Error: ${error.message}`);
         }
-    };
-
-    const startClimbingAnimation = (duration) => {
-        console.log('🎬 Starting climbing animation...');
-
-        if (!directionInputRef.current) {
-            console.log('❌ No direction input reference');
-            setDebugInfo('No direction input reference');
-            return;
-        }
-
-        console.log('🎯 Setting direction to 1');
-        setIsClimbing(true);
-
-        try {
-            // Start climbing
-            directionInputRef.current.value = 1;
-            console.log('✅ Direction set to 1');
-            setDebugInfo(`Climbing ${currentDonation} stairs for ${duration}s`);
-
-            // Stop after duration
-            setTimeout(() => {
-                console.log('🛑 Setting direction to 0');
-                directionInputRef.current.value = 0;
-                setIsClimbing(false);
-                setCurrentDonation(0);
-                setDebugInfo('Animation completed');
-                console.log('✅ Direction set to 0');
-            }, duration * 1000);
-
-        } catch (error) {
-            console.error('❌ Error controlling animation:', error);
-            setDebugInfo(`Animation error: ${error.message}`);
-        }
-    };
-
-    // Manual test function
-    const testAnimation = () => {
-        console.log('🧪 Manual test triggered');
-        startClimbingAnimation(3); // Test with 3 seconds
-    };
-
-    // Format large numbers with commas
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).format(amount);
-    };
-
-    // Format percentage
-    const formatPercentage = (current, goal) => {
-        const percentage = (current / goal) * 100;
-        return Math.min(percentage, 100).toFixed(6);
-    };
-
-    const formatDonationTime = (timestamp) => {
-        const date = new Date(timestamp);
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
 
     const sidebarWidth = isSidebarExpanded ? '350px' : '60px';
