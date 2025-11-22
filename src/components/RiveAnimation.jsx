@@ -1,5 +1,5 @@
 // src/components/RiveAnimation.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRive } from '@rive-app/react-webgl2';
 import { PayPalButtons, usePayPalScriptReducer } from '@paypal/react-paypal-js';
 import { DonationsService } from '../lib/donationsService';
@@ -115,11 +115,21 @@ export default function RiveAnimation() {
     const [customAmount, setCustomAmount] = useState('');
     const [showCustomInput, setShowCustomInput] = useState(false);
     const [showHowItWorks, setShowHowItWorks] = useState(false);
+    const [imageLoaded, setImageLoaded] = useState(false);
+    const [riveLoaded, setRiveLoaded] = useState(false);
 
     const { RiveComponent, rive } = useRive({
-        src: '/8866-17054-stairs-marcelo-bazani.riv',
+        src: `${import.meta.env.BASE_URL}rive/8866-17054-stairs-marcelo-bazani.riv`,
         autoplay: true,
         stateMachines: ["State Machine 1"],
+        onLoad: () => {
+            console.log('✅ Rive animation loaded');
+            setRiveLoaded(true);
+        },
+        onLoadError: (error) => {
+            console.error('❌ Rive loading error:', error);
+            setRiveLoaded(true); // Still set to true to show fallback
+        },
     });
 
     // ======================
@@ -363,68 +373,55 @@ export default function RiveAnimation() {
         initializeData();
     }, []);
 
-    useEffect(() => {
-        console.log('🎯 Setting up combined real-time subscription...');
+    const handleRealTimeUpdate = useCallback(async (payload) => {
+        console.log('📡 Real-time donation event:', payload);
 
-        const subscription = DonationsService.subscribeToDonations(async (payload) => {
-            console.log('📡 Real-time event received:', payload);
+        if (payload.eventType === 'INSERT' && payload.new) {
+            const donation = payload.new;
+            console.log('💫 New donation detected:', donation);
 
-            if (payload.eventType === 'INSERT' && payload.new) {
-                const donation = payload.new;
-                console.log('💰 New donation detected for real-time update');
+            // Update stats and graph
+            try {
+                const newTotal = await DonationsService.getTotalAmount();
+                setTotalMoney(newTotal);
 
-                // Update stats immediately
-                try {
-                    // Update total amount
-                    const newTotal = await DonationsService.getTotalAmount();
-                    setTotalMoney(newTotal);
+                const newRecent = await DonationsService.getRecentDonations(5);
+                setDonationHistory(newRecent);
 
-                    // Update recent donations
-                    const newRecent = await DonationsService.getRecentDonations(5);
-                    setDonationHistory(newRecent);
+                const newAllDonations = await DonationsService.getAllDonations();
+                setAllDonations(newAllDonations);
 
-                    // Update graph data
-                    const newAllDonations = await DonationsService.getAllDonations();
-                    setAllDonations(newAllDonations);
-                    setGraphRefreshTrigger(prev => prev + 1);
-
-                    console.log('✅ Real-time stats updated');
-                } catch (error) {
-                    console.error('❌ Error in real-time update:', error);
-                }
-
-                // 2. SHOW THANK YOU MESSAGE ONLY FOR OTHER USERS (not the donor)
-                const isOurOwnDonation = user && donation.user_email === user.email;
-
-                console.log('🔍 Real-time debug:', {
-                    donationUser: donation.user_email,
-                    currentUser: user?.email,
-                    isOurOwnDonation: user && donation.user_email === user.email,
-                    shouldShowMessage: !(user && donation.user_email === user.email)
-                });
-
-                if (!isOurOwnDonation) {
-                    console.log('💌 Showing thank you message for OTHER user');
-                    showThankYouMessage(donation);
-                } else {
-                    console.log('🔄 Skipping message - our own donation (handled locally)');
-                }
-
-                // PLAY ANIMATION ONLY FOR OTHER USERS
-
-
-                if (!isOurOwnDonation && !isClimbing) {
-                    console.log(`🎬 Playing remote animation: $${donation.amount}`);
-                    const duration = (donation.amount * 3) / 5;
-                    setCurrentDonation(donation.amount);
-                    startClimbingAnimation(duration);
-                } else if (isOurOwnDonation) {
-                    console.log('🔄 Skipping animation - our own donation');
-                } else if (isClimbing) {
-                    console.log('⏳ Skipping animation - already climbing');
-                }
+                setGraphRefreshTrigger(prev => prev + 1);
+            } catch (error) {
+                console.error('❌ Error updating stats:', error);
             }
-        });
+
+            // Handle animation for other users
+            const isOurOwnDonation = user && donation.user_email === user.email;
+            if (!isOurOwnDonation) {
+                console.log('💌 Showing thank you message for OTHER user');
+                showThankYouMessage(donation);
+            } else {
+                console.log('🔄 Skipping message - our own donation (handled locally)');
+            }
+
+            if (!isOurOwnDonation && !isClimbing) {
+                console.log(`🎬 Playing remote animation: $${donation.amount}`);
+                const duration = (donation.amount * 3) / 5;
+                setCurrentDonation(donation.amount);
+                startClimbingAnimation(duration);
+            } else if (isOurOwnDonation) {
+                console.log('🔄 Skipping animation - our own donation');
+            } else if (isClimbing) {
+                console.log('⏳ Skipping animation - already climbing');
+            }
+        }
+    }, [user, isClimbing]);
+
+    useEffect(() => {
+        console.log('🎯 Setting up real-time subscription...');
+
+        const subscription = DonationsService.subscribeToDonations(handleRealTimeUpdate);
 
         return () => {
             console.log('🧹 Cleaning up real-time subscription');
@@ -432,7 +429,7 @@ export default function RiveAnimation() {
                 DonationsService.unsubscribe(subscription);
             }
         };
-    }, [user, isClimbing]);
+    }, [handleRealTimeUpdate]);
 
     // Handle successful PayPal donation
     const handleDonationSuccess = async (amount, paypalDetails) => {
@@ -544,6 +541,25 @@ export default function RiveAnimation() {
                             objectFit: 'contain',
                             pointerEvents: 'none'
                         }} />
+
+                        {!riveLoaded && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '50%',
+                                left: '50%',
+                                transform: 'translate(-50%, -50%)',
+                                color: '#ffd93d',
+                                fontSize: '16px',
+                                fontWeight: 'bold',
+                                textAlign: 'center',
+                                background: 'rgba(0, 0, 0, 0.7)',
+                                padding: '20px',
+                                borderRadius: '10px',
+                                border: '1px solid rgba(255, 215, 0, 0.3)'
+                            }}>
+                                ⚡ Loading Animation...
+                            </div>
+                        )}
                     </div>
 
                     {/* Climbing Status - Bottom Center */}
@@ -708,8 +724,13 @@ export default function RiveAnimation() {
 
                         {/* Main Door Image - No Border, Just Glow */}
                         <img
-                            src="/src/assets/door-stretching-into-fantasy-world.jpg"
+                            src={`${import.meta.env.BASE_URL}assets/door-stretching-into-fantasy-world.jpg`}
                             alt="Fantasy World Door"
+                            onLoad={() => {
+                                console.log('✅ Door image loaded');
+                                setImageLoaded(true);
+                            }}
+                            onError={() => console.error('❌ Failed to load door image')}
                             style={{
                                 width: '100%',
                                 height: '100%',
@@ -794,7 +815,24 @@ export default function RiveAnimation() {
                         background: 'linear-gradient(90deg, #2b0c5c, transparent)',
                         pointerEvents: 'none'
                     }} />
-
+                    {!imageLoaded && (
+                        <div style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            background: 'linear-gradient(45deg, #2b0c5c, #4a1b9d)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#ffd93d',
+                            fontSize: '16px',
+                            fontWeight: 'bold'
+                        }}>
+                            🏰 Loading Heaven's Door...
+                        </div>
+                    )}
 
                 </div>
             </div>

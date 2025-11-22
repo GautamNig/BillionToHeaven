@@ -8,8 +8,8 @@ export default function AuthPage({ onSignIn }) {
       <div className="auth-content">
         <div className="auth-card">
           <div className="auth-header">
-            <h1 className="auth-title">CosmicFire</h1>
-            <p className="auth-subtitle">Join the celestial conversation</p>
+            <h1 className="auth-title">Billion To Heaven</h1>
+            <p className="auth-subtitle">Help NuNu reach heaven.</p>
           </div>
           
           <div className="auth-animation">

@@ -1,5 +1,5 @@
 -- =============================================
--- COMPLETE DATABASE SETUP FOR COSMIC FIRE
+-- COMPLETE DATABASE SETUP FOR BillionToHeaven
 -- Run this after database reset
 -- =============================================
 

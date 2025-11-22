@@ -74,6 +74,6 @@ export const AppSettings = {
 
 // Make settings globally accessible for debugging
 if (typeof window !== 'undefined') {
-  window.CosmicFireSettings = AppSettings;
-  console.log('🎛️ CosmicFire Settings Loaded:', AppSettings);
+  window.BillionToHeavenSettings = AppSettings;
+  console.log('🎛️ BillionToHeaven Settings Loaded:', AppSettings);
 }
