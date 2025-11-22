@@ -10,26 +10,28 @@ import DonationThankYouTooltip from './DonationThankYouTooltip';
 
 // Add this to the top of your RiveAnimation.jsx, after the imports
 const DONATION_MESSAGES_CONFIG = {
-    DISPLAY_DURATION: 5000, // 5 seconds
     POSITIONS: [
         { x: 50, y: 20 },  // Top center  
         { x: 50, y: 90 },  // Bottom center
     ]
 };
 
-// Component to handle PayPal loading states
+// Your existing PayPalDonationButton component should handle any amount
 function PayPalDonationButton({ amount, onDonationSuccess, disabled }) {
     const [{ isPending, isRejected }] = usePayPalScriptReducer();
 
     const createOrder = (data, actions) => {
+        // Validate amount
+        const validAmount = Math.max(1, parseFloat(amount) || 1);
+
         return actions.order.create({
             purchase_units: [
                 {
                     amount: {
-                        value: amount.toString(),
+                        value: validAmount.toString(),
                         currency_code: "USD"
                     },
-                    description: `Donation for ${amount} stair${amount > 1 ? 's' : ''}`
+                    description: `Donation for ${validAmount} stair${validAmount > 1 ? 's' : ''}`
                 }
             ]
         });
@@ -38,7 +40,8 @@ function PayPalDonationButton({ amount, onDonationSuccess, disabled }) {
     const onApprove = (data, actions) => {
         return actions.order.capture().then((details) => {
             console.log('🎉 PayPal donation approved:', details);
-            onDonationSuccess(amount, details);
+            const validAmount = Math.max(1, parseFloat(amount) || 1);
+            onDonationSuccess(validAmount, details);
         });
     };
 
@@ -46,6 +49,7 @@ function PayPalDonationButton({ amount, onDonationSuccess, disabled }) {
         console.error('❌ PayPal error:', err);
     };
 
+    // Rest of your existing PayPalDonationButton code...
     if (isRejected) {
         return (
             <div style={{
@@ -108,6 +112,9 @@ export default function RiveAnimation() {
     const [graphData, setGraphData] = useState([]);
     const [graphRefreshTrigger, setGraphRefreshTrigger] = useState(0);
     const [donationMessages, setDonationMessages] = useState([]);
+    const [customAmount, setCustomAmount] = useState('');
+    const [showCustomInput, setShowCustomInput] = useState(false);
+    const [showHowItWorks, setShowHowItWorks] = useState(false);
 
     const { RiveComponent, rive } = useRive({
         src: '/8866-17054-stairs-marcelo-bazani.riv',
@@ -222,7 +229,7 @@ export default function RiveAnimation() {
         // Remove message after configured duration
         setTimeout(() => {
             setDonationMessages(prev => prev.filter(msg => msg.id !== messageId));
-        }, DONATION_MESSAGES_CONFIG.DISPLAY_DURATION);
+        }, AppSettings.DONATION_MESSAGES.DISPLAY_DURATION);
     };
 
     // Helper function to generate filters
@@ -390,11 +397,11 @@ export default function RiveAnimation() {
                 const isOurOwnDonation = user && donation.user_email === user.email;
 
                 console.log('🔍 Real-time debug:', {
-                        donationUser: donation.user_email,
-                        currentUser: user?.email,
-                        isOurOwnDonation: user && donation.user_email === user.email,
-                        shouldShowMessage: !(user && donation.user_email === user.email)
-                        });
+                    donationUser: donation.user_email,
+                    currentUser: user?.email,
+                    isOurOwnDonation: user && donation.user_email === user.email,
+                    shouldShowMessage: !(user && donation.user_email === user.email)
+                });
 
                 if (!isOurOwnDonation) {
                     console.log('💌 Showing thank you message for OTHER user');
@@ -560,25 +567,111 @@ export default function RiveAnimation() {
                         </div>
                     )}
 
-                    {/* Info Section */}
+                    {/* Expandable How It Works - Top Left Animation Area */}
                     <div style={{
                         background: 'rgba(107, 207, 127, 0.1)',
-                        padding: '15px',
                         borderRadius: '10px',
                         border: '1px solid rgba(107, 207, 127, 0.3)',
                         position: 'absolute',
                         top: '20px',
-                        right: isSidebarExpanded ? '370px' : '80px',
-                        zIndex: 1000
+                        left: '20px',
+                        zIndex: 1000,
+                        maxWidth: '300px',
+                        backdropFilter: 'blur(10px)',
+                        overflow: 'hidden',
+                        transition: 'all 0.3s ease'
                     }}>
-                        <div style={{ color: '#6bcf7f', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>
-                            💡 How it works
-                        </div>
-                        <div style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '11px', lineHeight: '1.4' }}>
-                            Each $1 donation makes the ball climb 1 stair towards heaven.
-                            <br /><br />
-                            <strong>Help reach the magical door!</strong>
-                        </div>
+                        {/* Header - Always Visible */}
+                        <button
+                            onClick={() => setShowHowItWorks(!showHowItWorks)}
+                            style={{
+                                width: '100%',
+                                background: 'transparent',
+                                border: 'none',
+                                padding: '12px 15px',
+                                color: '#6bcf7f',
+                                fontSize: '13px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                transition: 'all 0.3s ease'
+                            }}
+                            onMouseOver={(e) => {
+                                e.target.style.background = 'rgba(107, 207, 127, 0.2)';
+                            }}
+                            onMouseOut={(e) => {
+                                e.target.style.background = 'transparent';
+                            }}
+                        >
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                💡 How it works
+                            </span>
+                            <span style={{
+                                fontSize: '12px',
+                                transform: showHowItWorks ? 'rotate(180deg)' : 'rotate(0deg)',
+                                transition: 'transform 0.3s ease'
+                            }}>
+                                ▼
+                            </span>
+                        </button>
+
+                        {/* Expandable Content */}
+                        {showHowItWorks && (
+                            <div style={{
+                                padding: '15px',
+                                borderTop: '1px solid rgba(107, 207, 127, 0.2)',
+                                background: 'rgba(0, 0, 0, 0.3)',
+                                animation: 'slideDown 0.3s ease'
+                            }}>
+                                <div style={{
+                                    color: 'rgba(255, 255, 255, 0.9)',
+                                    fontSize: '12px',
+                                    lineHeight: '1.5'
+                                }}>
+                                    <div style={{ marginBottom: '10px' }}>
+                                        <strong>🎯 The Journey to Heaven</strong>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                            <span style={{ color: '#FFD93D' }}>•</span>
+                                            <span>For every <strong>$</strong> NuNu climbs <strong>1 stair</strong></span>
+                                        </div>
+
+                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                            <span style={{ color: '#FFD93D' }}>•</span>
+                                            <span>50% of all payments received go directly toward helping Humans, Animals, and Trees.</span>
+                                        </div>
+
+                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                            <span style={{ color: '#FFD93D' }}>•</span>
+                                            <span>When you give, you’re not losing anything — you’re simply letting love flow through you.</span>
+                                        </div>
+
+                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                            <span style={{ color: '#FFD93D' }}>•</span>
+                                            <span>Give only what feels light, what doesn’t trouble your mind.</span>
+                                        </div>
+                                    </div>
+
+                                    <div style={{
+                                        marginTop: '12px',
+                                        padding: '10px',
+                                        background: 'rgba(255, 215, 0, 0.1)',
+                                        borderRadius: '8px',
+                                        border: '1px solid rgba(255, 215, 0, 0.2)',
+                                        textAlign: 'center',
+                                        fontSize: '11px',
+                                        color: '#FFD93D',
+                                        fontWeight: 'bold'
+                                    }}>
+                                        🏰 Help NuNu reach the magical door!
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
 
@@ -719,18 +812,84 @@ export default function RiveAnimation() {
                 position: 'relative',
                 zIndex: 1000
             }}>
-                {/* Sidebar Header */}
+                {/* Sidebar Header with User Info */}
                 <div style={{
-                    padding: '20px',
+                    padding: '15px 20px',
                     borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
                     display: 'flex',
-                    justifyContent: 'center',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
-                    minHeight: '80px'
+                    minHeight: '60px',
+                    background: 'rgba(255, 255, 255, 0.05)'
                 }}>
-                    <div style={{ color: 'white', fontSize: '18px', fontWeight: 'bold' }}>
+                    <div style={{
+                        color: 'white',
+                        fontSize: '18px',
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}>
                         💝 Donate
                     </div>
+
+                    {/* User Info in Header */}
+                    {user && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px'
+                        }}>
+                            <div style={{
+                                background: 'rgba(107, 207, 127, 0.2)',
+                                padding: '6px 12px',
+                                borderRadius: '15px',
+                                border: '1px solid rgba(107, 207, 127, 0.3)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                            }}>
+                                <div style={{
+                                    width: '6px',
+                                    height: '6px',
+                                    background: '#6bcf7f',
+                                    borderRadius: '50%',
+                                    animation: 'pulse 2s infinite'
+                                }} />
+                                <div style={{
+                                    color: '#6bcf7f',
+                                    fontSize: '11px',
+                                    fontWeight: '600'
+                                }}>
+                                    {user.email.split('@')[0]}
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleSignOut}
+                                style={{
+                                    background: 'rgba(255, 107, 107, 0.2)',
+                                    color: '#ff6b6b',
+                                    border: '1px solid rgba(255, 107, 107, 0.3)',
+                                    borderRadius: '6px',
+                                    padding: '6px 8px',
+                                    fontSize: '10px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.3s ease'
+                                }}
+                                onMouseOver={(e) => {
+                                    e.target.style.background = 'rgba(255, 107, 107, 0.3)';
+                                    e.target.style.color = '#ff8e8e';
+                                }}
+                                onMouseOut={(e) => {
+                                    e.target.style.background = 'rgba(255, 107, 107, 0.2)';
+                                    e.target.style.color = '#ff6b6b';
+                                }}
+                            >
+                                Sign Out
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Sidebar Content */}
@@ -779,56 +938,6 @@ export default function RiveAnimation() {
                             </div>
                         </div>
 
-                        {/* Bar Graph */}
-                        <DonationBarGraph isExpanded={isSidebarExpanded}
-                            refreshTrigger={graphRefreshTrigger}
-                            allDonations={allDonations} />
-
-                        {/* User Info with Signout Button */}
-                        {user && (
-                            <div style={{
-                                background: 'rgba(107, 207, 127, 0.1)',
-                                padding: '15px',
-                                borderRadius: '10px',
-                                border: '1px solid rgba(107, 207, 127, 0.3)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '10px'
-                            }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div style={{ color: '#6bcf7f', fontSize: '11px', fontWeight: 'bold' }}>
-                                        👤 Logged in as:
-                                    </div>
-                                    <button
-                                        onClick={handleSignOut}
-                                        style={{
-                                            background: 'rgba(255, 107, 107, 0.2)',
-                                            color: '#ff6b6b',
-                                            border: '1px solid rgba(255, 107, 107, 0.3)',
-                                            borderRadius: '5px',
-                                            padding: '4px 8px',
-                                            fontSize: '10px',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.3s ease'
-                                        }}
-                                        onMouseOver={(e) => {
-                                            e.target.style.background = 'rgba(255, 107, 107, 0.3)';
-                                            e.target.style.color = '#ff8e8e';
-                                        }}
-                                        onMouseOut={(e) => {
-                                            e.target.style.background = 'rgba(255, 107, 107, 0.2)';
-                                            e.target.style.color = '#ff6b6b';
-                                        }}
-                                    >
-                                        Sign Out
-                                    </button>
-                                </div>
-                                <div style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '10px', wordBreak: 'break-all' }}>
-                                    {user.email}
-                                </div>
-                            </div>
-                        )}
-
                         {/* Donation Options */}
                         <div>
                             <div style={{
@@ -841,7 +950,8 @@ export default function RiveAnimation() {
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                {[1, 5, 10, 20].map(amount => (
+                                {/* Fixed Amount Buttons */}
+                                {[5, 10].map(amount => (
                                     <div key={amount} style={{
                                         background: 'rgba(255, 255, 255, 0.05)',
                                         padding: '15px',
@@ -863,9 +973,150 @@ export default function RiveAnimation() {
                                         />
                                     </div>
                                 ))}
+
+                                {/* Custom Amount Option */}
+                                <div style={{
+                                    background: 'rgba(255, 215, 0, 0.1)',
+                                    padding: '15px',
+                                    borderRadius: '10px',
+                                    border: '1px solid rgba(255, 215, 0, 0.3)'
+                                }}>
+                                    {!showCustomInput ? (
+                                        // Show "Custom Amount" button
+                                        <button
+                                            onClick={() => setShowCustomInput(true)}
+                                            style={{
+                                                width: '100%',
+                                                background: 'linear-gradient(135deg, #FFD93D, #FF6B6B)',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                padding: '12px',
+                                                fontSize: '14px',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.3s ease'
+                                            }}
+                                            onMouseOver={(e) => {
+                                                e.target.style.background = 'linear-gradient(135deg, #FFE869, #FF8E8E)';
+                                                e.target.style.transform = 'scale(1.02)';
+                                            }}
+                                            onMouseOut={(e) => {
+                                                e.target.style.background = 'linear-gradient(135deg, #FFD93D, #FF6B6B)';
+                                                e.target.style.transform = 'scale(1)';
+                                            }}
+                                        >
+                                            💫 Custom Amount
+                                        </button>
+                                    ) : (
+                                        // Show custom amount input WITH PAYPAL BUTTON
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                            <div style={{
+                                                color: '#FFD93D',
+                                                fontSize: '14px',
+                                                textAlign: 'center',
+                                                fontWeight: 'bold',
+                                                marginBottom: '5px'
+                                            }}>
+                                                Enter Custom Amount
+                                            </div>
+
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                <span style={{ color: 'white', fontSize: '16px', fontWeight: 'bold' }}>$</span>
+                                                <input
+                                                    type="number"
+                                                    value={customAmount}
+                                                    onChange={(e) => setCustomAmount(e.target.value)}
+                                                    placeholder="0.00"
+                                                    min="1"
+                                                    step="0.01"
+                                                    style={{
+                                                        flex: 1,
+                                                        background: 'rgba(255, 255, 255, 0.1)',
+                                                        border: '1px solid rgba(255, 215, 0, 0.5)',
+                                                        borderRadius: '6px',
+                                                        padding: '10px',
+                                                        color: 'white',
+                                                        fontSize: '14px',
+                                                        outline: 'none'
+                                                    }}
+                                                    onFocus={(e) => {
+                                                        e.target.style.background = 'rgba(255, 255, 255, 0.15)';
+                                                        e.target.style.borderColor = '#FFD93D';
+                                                    }}
+                                                    onBlur={(e) => {
+                                                        e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                                                        e.target.style.borderColor = 'rgba(255, 215, 0, 0.5)';
+                                                    }}
+                                                />
+                                            </div>
+
+                                            {/* PayPal Button for Custom Amount */}
+                                            {customAmount && parseFloat(customAmount) >= 1 && (
+                                                <PayPalDonationButton
+                                                    amount={parseFloat(customAmount)}
+                                                    onDonationSuccess={(amount, details) => {
+                                                        handleDonationSuccess(amount, details);
+                                                        setShowCustomInput(false);
+                                                        setCustomAmount('');
+                                                    }}
+                                                    disabled={isClimbing || !directionInputRef.current}
+                                                />
+                                            )}
+
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button
+                                                    onClick={() => {
+                                                        setShowCustomInput(false);
+                                                        setCustomAmount('');
+                                                    }}
+                                                    style={{
+                                                        width: '100%',
+                                                        background: 'rgba(255, 255, 255, 0.1)',
+                                                        color: 'white',
+                                                        border: '1px solid rgba(255, 255, 255, 0.3)',
+                                                        borderRadius: '6px',
+                                                        padding: '10px',
+                                                        fontSize: '14px',
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.3s ease'
+                                                    }}
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+
+                                            {customAmount && parseFloat(customAmount) < 1 && (
+                                                <div style={{
+                                                    color: '#FF6B6B',
+                                                    fontSize: '12px',
+                                                    textAlign: 'center',
+                                                    marginTop: '5px'
+                                                }}>
+                                                    Minimum donation is $1
+                                                </div>
+                                            )}
+
+                                            {!customAmount && (
+                                                <div style={{
+                                                    color: 'rgba(255, 255, 255, 0.6)',
+                                                    fontSize: '12px',
+                                                    textAlign: 'center',
+                                                    marginTop: '5px'
+                                                }}>
+                                                    Enter an amount to see PayPal options
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
+                        {/* Bar Graph */}
+                        <DonationBarGraph isExpanded={isSidebarExpanded}
+                            refreshTrigger={graphRefreshTrigger}
+                            allDonations={allDonations} />
 
                     </div>
                 )}
@@ -914,6 +1165,18 @@ export default function RiveAnimation() {
                 0 0 120px rgba(255, 215, 0, 0.2);
             }
           }
+            @keyframes slideDown {
+      from {
+        opacity: 0;
+        max-height: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        max-height: 500px;
+        transform: translateY(0);
+      }
+    }
         `}
             </style>
             {/* Donation Thank You Messages */}

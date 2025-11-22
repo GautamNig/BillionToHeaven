@@ -22,16 +22,6 @@ export const AppSettings = {
   },
   
   // ========================
-  // MESSAGE SYSTEM SETTINGS
-  // ========================
-  MESSAGES: {
-    RATE_LIMIT_SECONDS: 8,      // Cooldown between messages (seconds) - TEST WITH 8s
-    TOOLTIP_DURATION: 5000,     // How long tooltip bubbles stay visible (ms)
-    MAX_MESSAGE_LENGTH: 50,     // Character limit for messages
-    MESSAGE_HISTORY_LIMIT: 30,  // Number of messages to show in history
-  },
-  
-  // ========================
   // TOOLTIP BUBBLE SETTINGS
   // ========================
   TOOLTIPS: {
@@ -76,7 +66,7 @@ export const AppSettings = {
   },
 
   DONATION_MESSAGES: {
-    DISPLAY_DURATION: 5000, // 5 seconds - configurable
+    DISPLAY_DURATION: 15000, // 5 seconds - configurable
     VERTICAL_OFFSET: 8,     // % offset from star
     HORIZONTAL_OFFSET: 6    // % offset from star
   }
