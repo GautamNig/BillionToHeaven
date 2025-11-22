@@ -1,0 +1,172 @@
+/* src/components/DonationThankYouTooltip.css */
+
+/* TOOLTIP CONTAINER - FIXED POSITIONING */
+.donation-tooltip {
+  position: fixed; /* Changed from absolute to fixed */
+  z-index: 9999; /* Highest z-index */
+  animation: fadeIn 0.3s ease;
+  pointer-events: none;
+  max-width: 280px;
+  min-width: 120px;
+}
+
+/* CURRENT USER - GOLDEN/YELLOW THEME */
+.tooltip-bubble.current-user {
+  background: linear-gradient(135deg, #FFD93D, #FF6B6B);
+  border-radius: 18px 18px 6px 18px;
+  padding: 12px 14px 8px 14px;
+  box-shadow: 
+    0 4px 20px rgba(255, 217, 61, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.2),
+    0 0 30px rgba(255, 217, 61, 0.3); /* Added outer glow */
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  position: relative;
+  backdrop-filter: blur(10px);
+}
+
+/* OTHER USER - BLUE/TEAL THEME */
+.tooltip-bubble.other-user {
+  background: linear-gradient(135deg, #06b6d4, #3b82f6);
+  border-radius: 18px 18px 18px 6px;
+  padding: 12px 14px 8px 14px;
+  box-shadow: 
+    0 4px 20px rgba(6, 182, 212, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.2),
+    0 0 30px rgba(6, 182, 212, 0.3); /* Added outer glow */
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  position: relative;
+  backdrop-filter: blur(10px);
+}
+
+/* MESSAGE HEADER */
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  gap: 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.username {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+}
+
+.donation-amount {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+/* MESSAGE CONTENT */
+.message-content {
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 500;
+  word-wrap: break-word;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  padding-top: 2px;
+}
+
+/* GLOW EFFECT FOR BUBBLES */
+.tooltip-bubble.current-user {
+  animation: goldenGlow 2s ease-in-out infinite alternate;
+}
+
+.tooltip-bubble.other-user {
+  animation: blueGlow 2s ease-in-out 1s infinite alternate;
+}
+
+@keyframes goldenGlow {
+  from {
+    box-shadow: 
+      0 4px 20px rgba(255, 217, 61, 0.4),
+      0 0 0 1px rgba(255, 255, 255, 0.2),
+      0 0 30px rgba(255, 217, 61, 0.3);
+  }
+  to {
+    box-shadow: 
+      0 4px 30px rgba(255, 217, 61, 0.6),
+      0 0 0 1px rgba(255, 255, 255, 0.3),
+      0 0 40px rgba(255, 217, 61, 0.5);
+  }
+}
+
+@keyframes blueGlow {
+  from {
+    box-shadow: 
+      0 4px 20px rgba(6, 182, 212, 0.4),
+      0 0 0 1px rgba(255, 255, 255, 0.2),
+      0 0 30px rgba(6, 182, 212, 0.3);
+  }
+  to {
+    box-shadow: 
+      0 4px 30px rgba(6, 182, 212, 0.6),
+      0 0 0 1px rgba(255, 255, 255, 0.3),
+      0 0 40px rgba(6, 182, 212, 0.5);
+  }
+}
+
+/* ANIMATIONS */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+}
+
+.donation-tooltip.fading {
+  animation: fadeOut 0.3s ease forwards;
+}
+
+/* Pulse animation for new donation messages */
+@keyframes pulse-donation {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.donation-tooltip:first-of-type {
+  animation: fadeIn 0.3s ease, pulse-donation 0.6s ease 0.3s;
+}
+
+/* Special emoji styling */
+.tooltip-bubble.current-user .message-header .username::before {
+  content: "🎁 ";
+}
+
+.tooltip-bubble.other-user .message-header .username::before {
+  content: "✨ ";
+}

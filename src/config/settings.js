@@ -73,6 +73,12 @@ export const AppSettings = {
     MESSAGE_INPUT_OPACITY: 0.1, // Background opacity of message input
     SIDEBAR_OPACITY: 0.95,      // Background opacity of message history sidebar
     DEBUG_MODE: false,          // Show debug information
+  },
+
+  DONATION_MESSAGES: {
+    DISPLAY_DURATION: 5000, // 5 seconds - configurable
+    VERTICAL_OFFSET: 8,     // % offset from star
+    HORIZONTAL_OFFSET: 6    // % offset from star
   }
 };
 

@@ -5,6 +5,17 @@ import { PayPalButtons, usePayPalScriptReducer } from '@paypal/react-paypal-js';
 import { DonationsService } from '../lib/donationsService';
 import useAuth from '../hooks/useAuth';
 import DonationBarGraph from './DonationBarGraph';
+import { AppSettings } from '../config/settings';
+import DonationThankYouTooltip from './DonationThankYouTooltip';
+
+// Add this to the top of your RiveAnimation.jsx, after the imports
+const DONATION_MESSAGES_CONFIG = {
+    DISPLAY_DURATION: 5000, // 5 seconds
+    POSITIONS: [
+        { x: 50, y: 20 },  // Top center  
+        { x: 50, y: 90 },  // Bottom center
+    ]
+};
 
 // Component to handle PayPal loading states
 function PayPalDonationButton({ amount, onDonationSuccess, disabled }) {
@@ -96,6 +107,7 @@ export default function RiveAnimation() {
     const [allDonations, setAllDonations] = useState([]);
     const [graphData, setGraphData] = useState([]);
     const [graphRefreshTrigger, setGraphRefreshTrigger] = useState(0);
+    const [donationMessages, setDonationMessages] = useState([]);
 
     const { RiveComponent, rive } = useRive({
         src: '/8866-17054-stairs-marcelo-bazani.riv',
@@ -189,6 +201,28 @@ export default function RiveAnimation() {
       0 0 ${outer.blur * hoverMultiplier}px ${outer.spread}px ${outer.color},
       inset 0 0 ${inset.blur * hoverMultiplier}px ${inset.spread}px ${inset.color}
     `;
+    };
+
+    // Add this function to show a thank you message
+    const showThankYouMessage = (donation) => {
+        const messageId = `donation-${donation.id}-${Date.now()}`;
+        const randomPosition = DONATION_MESSAGES_CONFIG.POSITIONS[
+            Math.floor(Math.random() * DONATION_MESSAGES_CONFIG.POSITIONS.length)
+        ];
+
+        // Add message to state
+        const messageWithPosition = {
+            ...donation,
+            id: messageId,
+            position: randomPosition
+        };
+
+        setDonationMessages(prev => [...prev, messageWithPosition]);
+
+        // Remove message after configured duration
+        setTimeout(() => {
+            setDonationMessages(prev => prev.filter(msg => msg.id !== messageId));
+        }, DONATION_MESSAGES_CONFIG.DISPLAY_DURATION);
     };
 
     // Helper function to generate filters
@@ -323,7 +357,7 @@ export default function RiveAnimation() {
     }, []);
 
     useEffect(() => {
-        console.log('🎯 Setting up real-time subscription...');
+        console.log('🎯 Setting up combined real-time subscription...');
 
         const subscription = DonationsService.subscribeToDonations(async (payload) => {
             console.log('📡 Real-time event received:', payload);
@@ -352,14 +386,35 @@ export default function RiveAnimation() {
                     console.error('❌ Error in real-time update:', error);
                 }
 
-                // Handle animation for other users
+                // 2. SHOW THANK YOU MESSAGE ONLY FOR OTHER USERS (not the donor)
                 const isOurOwnDonation = user && donation.user_email === user.email;
+
+                console.log('🔍 Real-time debug:', {
+                        donationUser: donation.user_email,
+                        currentUser: user?.email,
+                        isOurOwnDonation: user && donation.user_email === user.email,
+                        shouldShowMessage: !(user && donation.user_email === user.email)
+                        });
+
+                if (!isOurOwnDonation) {
+                    console.log('💌 Showing thank you message for OTHER user');
+                    showThankYouMessage(donation);
+                } else {
+                    console.log('🔄 Skipping message - our own donation (handled locally)');
+                }
+
+                // PLAY ANIMATION ONLY FOR OTHER USERS
+
 
                 if (!isOurOwnDonation && !isClimbing) {
                     console.log(`🎬 Playing remote animation: $${donation.amount}`);
                     const duration = (donation.amount * 3) / 5;
                     setCurrentDonation(donation.amount);
                     startClimbingAnimation(duration);
+                } else if (isOurOwnDonation) {
+                    console.log('🔄 Skipping animation - our own donation');
+                } else if (isClimbing) {
+                    console.log('⏳ Skipping animation - already climbing');
                 }
             }
         });
@@ -403,6 +458,13 @@ export default function RiveAnimation() {
             setAllDonations(newAllDonations);
 
             console.log('✅ ALL UI data force refreshed');
+
+            // Show thank you message for current user immediately
+            showThankYouMessage({
+                ...donationRecord,
+                user_email: user?.email,
+                amount: amount
+            });
 
             // Calculate animation duration
             const stairsToClimb = amount;
@@ -640,7 +702,7 @@ export default function RiveAnimation() {
                         pointerEvents: 'none'
                     }} />
 
-                   
+
                 </div>
             </div>
 
@@ -854,6 +916,15 @@ export default function RiveAnimation() {
           }
         `}
             </style>
+            {/* Donation Thank You Messages */}
+            {donationMessages.map(donation => (
+                <DonationThankYouTooltip
+                    key={donation.id}
+                    donation={donation}
+                    position={donation.position}
+                    currentUser={user}
+                />
+            ))}
         </div>
     );
 }
