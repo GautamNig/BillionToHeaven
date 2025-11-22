@@ -835,6 +835,58 @@ export default function RiveAnimation() {
                     )}
 
                 </div>
+
+                {/* CC BY Attribution */}
+                <div style={{
+                    position: 'fixed',
+                    bottom: '2px',
+                    left: '2px',
+                    background: 'rgba(0, 0, 0, 0.7)',
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    fontSize: '8px',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    zIndex: 1000,
+                    maxWidth: '200px'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                        <span>🎨</span>
+                        <span style={{ fontWeight: 'bold', color: '#FFD93D' }}>Animation:</span>
+                    </div>
+                    <div style={{ lineHeight: '1.3' }}>
+                        "stairs" by <strong>Marcelo Bazani</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                            <a
+                                href="https://creativecommons.org/licenses/by/4.0/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                    color: '#FFD93D',
+                                    textDecoration: 'none',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '2px'
+                                }}
+                            >
+                                <span>CC BY 4.0</span>
+                            </a>
+                            <span style={{ color: 'rgba(255, 255, 255, 0.4)' }}>•</span>
+                            <a
+                                href="https://rive.app/community/8866-17054-stairs-marcelo-bazani"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                    color: '#FFD93D',
+                                    textDecoration: 'none'
+                                }}
+                            >
+                                View on Rive
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Sidebar - Right Side */}
