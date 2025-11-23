@@ -710,112 +710,414 @@ export default function RiveAnimation() {
                         </div>
                     )}
 
-                    {/* Expandable How It Works - Top Left Animation Area */}
+{/* Magical How It Works Section - Enhanced with Scroll */}
+<div style={{
+    background: 'linear-gradient(135deg, rgba(107, 207, 127, 0.15), rgba(138, 127, 255, 0.15))',
+    borderRadius: '16px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    position: 'absolute',
+    top: '20px',
+    left: '20px',
+    zIndex: 1000,
+    maxWidth: '380px',
+    maxHeight: '80vh', // Limit height to viewport
+    backdropFilter: 'blur(20px)',
+    overflow: 'hidden', // Keep hidden for container
+    transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+    boxShadow: `
+        0 8px 32px rgba(0, 0, 0, 0.3),
+        0 2px 8px rgba(107, 207, 127, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1)
+    `
+}}>
+    {/* Animated Background Particles */}
+    <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: `
+            radial-gradient(4px 4px at 20% 30%, rgba(255,215,0,0.6), transparent),
+            radial-gradient(3px 3px at 80% 70%, rgba(107,207,127,0.5), transparent),
+            radial-gradient(2px 2px at 40% 20%, rgba(138,127,255,0.4), transparent),
+            radial-gradient(3px 3px at 60% 80%, rgba(255,107,107,0.3), transparent)
+        `,
+        pointerEvents: 'none',
+        animation: 'float 6s ease-in-out infinite'
+    }} />
+
+    {/* Header - Magical Button */}
+    <button
+        onClick={() => setShowHowItWorks(!showHowItWorks)}
+        style={{
+            width: '100%',
+            background: 'linear-gradient(135deg, rgba(107, 207, 127, 0.2), rgba(138, 127, 255, 0.2))',
+            border: 'none',
+            padding: '16px 20px',
+            color: '#fff',
+            fontSize: '15px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            transition: 'all 0.3s ease',
+            position: 'relative',
+            overflow: 'hidden'
+        }}
+        onMouseOver={(e) => {
+            e.target.style.background = 'linear-gradient(135deg, rgba(107, 207, 127, 0.3), rgba(138, 127, 255, 0.3))';
+            e.target.style.transform = 'translateY(-1px)';
+        }}
+        onMouseOut={(e) => {
+            e.target.style.background = 'linear-gradient(135deg, rgba(107, 207, 127, 0.2), rgba(138, 127, 255, 0.2))';
+            e.target.style.transform = 'translateY(0)';
+        }}
+    >
+        {/* Animated Sparkle Effect */}
+        <div style={{
+            position: 'absolute',
+            top: 0,
+            left: '-100%',
+            width: '100%',
+            height: '100%',
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+            transition: 'left 0.6s ease',
+            pointerEvents: 'none'
+        }} 
+        onMouseOver={(e) => {
+            e.target.style.left = '100%';
+        }}
+        />
+        
+        <span style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '12px',
+            textShadow: '0 2px 4px rgba(0,0,0,0.3)'
+        }}>
+            <span style={{
+                fontSize: '18px',
+                animation: 'bounce 2s infinite'
+            }}>✨</span>
+            The Magical Journey
+            <span style={{
+                fontSize: '18px',
+                animation: 'bounce 2s infinite 0.5s'
+            }}>🌟</span>
+        </span>
+        <span style={{
+            fontSize: '14px',
+            transform: showHowItWorks ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+            background: 'rgba(255,255,255,0.1)',
+            borderRadius: '50%',
+            width: '24px',
+            height: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+        }}>
+            ▼
+        </span>
+    </button>
+
+    {/* Expandable Content with Scroll */}
+    {showHowItWorks && (
+        <div style={{
+            maxHeight: 'calc(80vh - 80px)', // Subtract header height
+            overflowY: 'auto', // Enable scrolling
+            background: 'rgba(0, 0, 0, 0.4)',
+            animation: 'magicReveal 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+        }} className="how-it-works-scrollable">
+            
+            {/* Header Section */}
+            <div style={{
+                padding: '20px 20px 16px',
+                background: 'linear-gradient(135deg, rgba(255,215,0,0.1), rgba(107,207,127,0.1))',
+                borderBottom: '1px solid rgba(255,255,255,0.1)',
+                textAlign: 'center'
+            }}>
+                <div style={{
+                    color: '#FFD93D',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    marginBottom: '8px',
+                    textShadow: '0 2px 8px rgba(255,215,0,0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                }}>
+                    <span style={{ animation: 'pulse 2s infinite' }}>🎯</span>
+                    NuNu's Epic Adventure to Heaven
+                    <span style={{ animation: 'pulse 2s infinite 1s' }}>⚡</span>
+                </div>
+                <div style={{
+                    color: 'rgba(255, 255, 255, 0.8)',
+                    fontSize: '12px',
+                    lineHeight: '1.4'
+                }}>
+                    Every donation brings us closer to the magical door!
+                </div>
+            </div>
+
+            {/* Steps Container */}
+            <div style={{ padding: '20px' }}>
+                {/* Step 1 - Money to Stairs */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '16px',
+                    marginBottom: '20px',
+                    padding: '16px',
+                    background: 'rgba(255, 217, 61, 0.08)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255, 217, 61, 0.2)',
+                    transition: 'all 0.3s ease',
+                    animation: 'slideInLeft 0.6s ease 0.1s both'
+                }} 
+                onMouseOver={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 217, 61, 0.15)';
+                    e.currentTarget.style.transform = 'translateX(8px)';
+                }}
+                onMouseOut={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 217, 61, 0.08)';
+                    e.currentTarget.style.transform = 'translateX(0)';
+                }}
+                >
                     <div style={{
-                        background: 'rgba(107, 207, 127, 0.1)',
+                        background: 'linear-gradient(135deg, #FFD93D, #FF6B6B)',
                         borderRadius: '10px',
-                        border: '1px solid rgba(107, 207, 127, 0.3)',
-                        position: 'absolute',
-                        top: '20px',
-                        left: '20px',
-                        zIndex: 1000,
-                        maxWidth: '300px',
-                        backdropFilter: 'blur(10px)',
-                        overflow: 'hidden',
-                        transition: 'all 0.3s ease'
+                        padding: '10px',
+                        fontSize: '16px',
+                        minWidth: '40px',
+                        height: '40px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        animation: 'bounce 3s infinite'
                     }}>
-                        {/* Header - Always Visible */}
-                        <button
-                            onClick={() => setShowHowItWorks(!showHowItWorks)}
-                            style={{
-                                width: '100%',
-                                background: 'transparent',
-                                border: 'none',
-                                padding: '12px 15px',
-                                color: '#6bcf7f',
-                                fontSize: '13px',
-                                fontWeight: 'bold',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                transition: 'all 0.3s ease'
-                            }}
-                            onMouseOver={(e) => {
-                                e.target.style.background = 'rgba(107, 207, 127, 0.2)';
-                            }}
-                            onMouseOut={(e) => {
-                                e.target.style.background = 'transparent';
-                            }}
-                        >
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                💡 How it works
-                            </span>
-                            <span style={{
-                                fontSize: '12px',
-                                transform: showHowItWorks ? 'rotate(180deg)' : 'rotate(0deg)',
-                                transition: 'transform 0.3s ease'
-                            }}>
-                                ▼
-                            </span>
-                        </button>
-
-                        {/* Expandable Content */}
-                        {showHowItWorks && (
-                            <div style={{
-                                padding: '15px',
-                                borderTop: '1px solid rgba(107, 207, 127, 0.2)',
-                                background: 'rgba(0, 0, 0, 0.3)',
-                                animation: 'slideDown 0.3s ease'
-                            }}>
-                                <div style={{
-                                    color: 'rgba(255, 255, 255, 0.9)',
-                                    fontSize: '12px',
-                                    lineHeight: '1.5'
-                                }}>
-                                    <div style={{ marginBottom: '10px' }}>
-                                        <strong>🎯 The Journey to Heaven</strong>
-                                    </div>
-
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                                            <span style={{ color: '#FFD93D' }}>•</span>
-                                            <span>For every <strong>$</strong> NuNu climbs <strong>1 stair</strong></span>
-                                        </div>
-
-                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                                            <span style={{ color: '#FFD93D' }}>•</span>
-                                            <span>50% of all payments received go directly toward helping Humans, Animals, and Trees.</span>
-                                        </div>
-
-                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                                            <span style={{ color: '#FFD93D' }}>•</span>
-                                            <span>When you give, you’re not losing anything — you’re simply letting love flow through you.</span>
-                                        </div>
-
-                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                                            <span style={{ color: '#FFD93D' }}>•</span>
-                                            <span>Give only what feels light, what doesn’t trouble your mind.</span>
-                                        </div>
-                                    </div>
-
-                                    <div style={{
-                                        marginTop: '12px',
-                                        padding: '10px',
-                                        background: 'rgba(255, 215, 0, 0.1)',
-                                        borderRadius: '8px',
-                                        border: '1px solid rgba(255, 215, 0, 0.2)',
-                                        textAlign: 'center',
-                                        fontSize: '11px',
-                                        color: '#FFD93D',
-                                        fontWeight: 'bold'
-                                    }}>
-                                        🏰 Help NuNu reach the magical door!
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                        💰
                     </div>
+                    <div style={{ flex: 1 }}>
+                        <div style={{
+                            color: '#FFD93D',
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            marginBottom: '6px'
+                        }}>
+                            Magic Conversion
+                        </div>
+                        <div style={{
+                            color: 'rgba(255, 255, 255, 0.9)',
+                            fontSize: '13px',
+                            lineHeight: '1.5'
+                        }}>
+                            Every <strong style={{color: '#FFD93D'}}>$1</strong> magically transforms into <strong style={{color: '#6bcf7f'}}>1 stair</strong> for NuNu to climb!
+                        </div>
+                    </div>
+                </div>
+
+                {/* Step 2 - Charity Impact */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '16px',
+                    marginBottom: '20px',
+                    padding: '16px',
+                    background: 'rgba(107, 207, 127, 0.08)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(107, 207, 127, 0.2)',
+                    transition: 'all 0.3s ease',
+                    animation: 'slideInLeft 0.6s ease 0.2s both'
+                }}
+                onMouseOver={(e) => {
+                    e.currentTarget.style.background = 'rgba(107, 207, 127, 0.15)';
+                    e.currentTarget.style.transform = 'translateX(8px)';
+                }}
+                onMouseOut={(e) => {
+                    e.currentTarget.style.background = 'rgba(107, 207, 127, 0.08)';
+                    e.currentTarget.style.transform = 'translateX(0)';
+                }}
+                >
+                    <div style={{
+                        background: 'linear-gradient(135deg, #6bcf7f, #8a7fff)',
+                        borderRadius: '10px',
+                        padding: '10px',
+                        fontSize: '16px',
+                        minWidth: '40px',
+                        height: '40px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        animation: 'bounce 3s infinite 0.3s'
+                    }}>
+                        🌍
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <div style={{
+                            color: '#6bcf7f',
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            marginBottom: '6px'
+                        }}>
+                            Heartfelt Impact
+                        </div>
+                        <div style={{
+                            color: 'rgba(255, 255, 255, 0.9)',
+                            fontSize: '13px',
+                            lineHeight: '1.5'
+                        }}>
+                            <strong style={{color: '#6bcf7f'}}>50%</strong> of all donations directly support Humans, Animals, and Trees in need.
+                        </div>
+                    </div>
+                </div>
+
+                {/* Step 3 - Future Support */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '16px',
+                    marginBottom: '20px',
+                    padding: '16px',
+                    background: 'rgba(138, 127, 255, 0.08)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(138, 127, 255, 0.2)',
+                    transition: 'all 0.3s ease',
+                    animation: 'slideInLeft 0.6s ease 0.3s both'
+                }}
+                onMouseOver={(e) => {
+                    e.currentTarget.style.background = 'rgba(138, 127, 255, 0.15)';
+                    e.currentTarget.style.transform = 'translateX(8px)';
+                }}
+                onMouseOut={(e) => {
+                    e.currentTarget.style.background = 'rgba(138, 127, 255, 0.08)';
+                    e.currentTarget.style.transform = 'translateX(0)';
+                }}
+                >
+                    <div style={{
+                        background: 'linear-gradient(135deg, #8a7fff, #FF6B6B)',
+                        borderRadius: '10px',
+                        padding: '10px',
+                        fontSize: '16px',
+                        minWidth: '40px',
+                        height: '40px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        animation: 'bounce 3s infinite 0.6s'
+                    }}>
+                        🔄
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <div style={{
+                            color: '#8a7fff',
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            marginBottom: '6px'
+                        }}>
+                            Pay It Forward
+                        </div>
+                        <div style={{
+                            color: 'rgba(255, 255, 255, 0.9)',
+                            fontSize: '13px',
+                            lineHeight: '1.5'
+                        }}>
+                            When NuNu reaches heaven, <strong style={{color: '#8a7fff'}}>YOU</strong> could be next! The site will help donors raise funds for their chosen causes.
+                        </div>
+                    </div>
+                </div>
+
+                {/* Step 4 - Mindful Giving */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '16px',
+                    padding: '16px',
+                    background: 'rgba(255, 107, 107, 0.08)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255, 107, 107, 0.2)',
+                    transition: 'all 0.3s ease',
+                    animation: 'slideInLeft 0.6s ease 0.4s both'
+                }}
+                onMouseOver={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 107, 107, 0.15)';
+                    e.currentTarget.style.transform = 'translateX(8px)';
+                }}
+                onMouseOut={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 107, 107, 0.08)';
+                    e.currentTarget.style.transform = 'translateX(0)';
+                }}
+                >
+                    <div style={{
+                        background: 'linear-gradient(135deg, #FF6B6B, #FFD93D)',
+                        borderRadius: '10px',
+                        padding: '10px',
+                        fontSize: '16px',
+                        minWidth: '40px',
+                        height: '40px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        animation: 'bounce 3s infinite 0.9s'
+                    }}>
+                        💖
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <div style={{
+                            color: '#FF6B6B',
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            marginBottom: '6px'
+                        }}>
+                            Give with Joy
+                        </div>
+                        <div style={{
+                            color: 'rgba(255, 255, 255, 0.9)',
+                            fontSize: '13px',
+                            lineHeight: '1.5'
+                        }}>
+                            Donate only what feels light and joyful. Let love flow through you effortlessly.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Magical Call to Action */}
+            <div style={{
+                padding: '20px',
+                background: 'linear-gradient(135deg, rgba(255,215,0,0.15), rgba(138,127,255,0.15))',
+                borderTop: '1px solid rgba(255,255,255,0.1)',
+                textAlign: 'center',
+                animation: 'pulse-glow 4s ease-in-out infinite'
+            }}>
+                <div style={{
+                    color: '#FFD93D',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    marginBottom: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                }}>
+                    <span style={{ animation: 'spin 3s linear infinite' }}>🚀</span>
+                    Join the Magical Journey!
+                    <span style={{ animation: 'spin 3s linear infinite reverse' }}>🌈</span>
+                </div>
+                <div style={{
+                    color: 'rgba(255, 255, 255, 0.8)',
+                    fontSize: '12px',
+                    fontStyle: 'italic'
+                }}>
+                    Every step brings magic to the world
+                </div>
+            </div>
+        </div>
+    )}
+</div>
 
 
                 </div>
@@ -1559,6 +1861,59 @@ export default function RiveAnimation() {
     .donation-history-scrollable {
       scroll-behavior: smooth;
     }
+      @keyframes magicReveal {
+    from {
+        opacity: 0;
+        max-height: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        max-height: 800px;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {
+        transform: translateY(0);
+    }
+    40% {
+        transform: translateY(-5px);
+    }
+    60% {
+        transform: translateY(-3px);
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
         `}
             </style>
             {/* Donation Thank You Messages */}
