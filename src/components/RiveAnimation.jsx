@@ -7,6 +7,7 @@ import useAuth from '../hooks/useAuth';
 import DonationBarGraph from './DonationBarGraph';
 import { AppSettings } from '../config/settings';
 import DonationThankYouTooltip from './DonationThankYouTooltip';
+import AuthModal from './AuthModal';
 
 // Add this to the top of your RiveAnimation.jsx, after the imports
 const DONATION_MESSAGES_CONFIG = {
@@ -96,7 +97,6 @@ function PayPalDonationButton({ amount, onDonationSuccess, disabled }) {
 }
 
 export default function RiveAnimation() {
-    const { user, signOut } = useAuth();
     const [totalMoney, setTotalMoney] = useState(0);
     const [currentGoal, setCurrentGoal] = useState(1000000000);
     const [isClimbing, setIsClimbing] = useState(false);
@@ -117,6 +117,8 @@ export default function RiveAnimation() {
     const [showHowItWorks, setShowHowItWorks] = useState(false);
     const [imageLoaded, setImageLoaded] = useState(false);
     const [riveLoaded, setRiveLoaded] = useState(false);
+
+    const { user, signOut, showAuthModal, openAuthModal, closeAuthModal } = useAuth();
 
     const { RiveComponent, rive } = useRive({
         src: `${import.meta.env.BASE_URL}rive/8866-17054-stairs-marcelo-bazani.riv`,
@@ -843,9 +845,9 @@ export default function RiveAnimation() {
                     left: '2px',
                     background: 'rgba(0, 0, 0, 0.7)',
                     color: 'rgba(255, 255, 255, 0.7)',
-                    padding: '8px 12px',
+                    padding: '4px 8px',
                     borderRadius: '6px',
-                    fontSize: '8px',
+                    fontSize: '9px',
                     backdropFilter: 'blur(10px)',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     zIndex: 1000,
@@ -924,7 +926,7 @@ export default function RiveAnimation() {
                     </div>
 
                     {/* User Info in Header */}
-                    {user && (
+                    {user ? (
                         <div style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -967,16 +969,39 @@ export default function RiveAnimation() {
                                     cursor: 'pointer',
                                     transition: 'all 0.3s ease'
                                 }}
-                                onMouseOver={(e) => {
-                                    e.target.style.background = 'rgba(255, 107, 107, 0.3)';
-                                    e.target.style.color = '#ff8e8e';
-                                }}
-                                onMouseOut={(e) => {
-                                    e.target.style.background = 'rgba(255, 107, 107, 0.2)';
-                                    e.target.style.color = '#ff6b6b';
-                                }}
                             >
                                 Sign Out
+                            </button>
+                        </div>
+                    ) : (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                        }}>
+                            <button
+                                onClick={() => openAuthModal('login')}
+                                style={{
+                                    background: 'linear-gradient(135deg, #8a7fff, #6366f1)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    padding: '8px 16px',
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.3s ease'
+                                }}
+                                onMouseOver={(e) => {
+                                    e.target.style.transform = 'translateY(-1px)';
+                                    e.target.style.boxShadow = '0 4px 12px rgba(138, 127, 255, 0.3)';
+                                }}
+                                onMouseOut={(e) => {
+                                    e.target.style.transform = 'translateY(0)';
+                                    e.target.style.boxShadow = 'none';
+                                }}
+                            >
+                                🔐 Sign In
                             </button>
                         </div>
                     )}
@@ -1237,6 +1262,12 @@ export default function RiveAnimation() {
                     </div>
                 )}
             </div>
+
+            {/* Auth Modal */}
+            <AuthModal
+            isOpen={showAuthModal && !user}
+            onClose={closeAuthModal}
+            />
 
             {/* CSS Animation for glowing effect */}
             <style>
