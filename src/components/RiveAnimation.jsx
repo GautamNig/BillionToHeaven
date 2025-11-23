@@ -115,6 +115,7 @@ export default function RiveAnimation() {
     const [customAmount, setCustomAmount] = useState('');
     const [showCustomInput, setShowCustomInput] = useState(false);
     const [showHowItWorks, setShowHowItWorks] = useState(false);
+    const [showDonationHistory, setShowDonationHistory] = useState(false);
     const [imageLoaded, setImageLoaded] = useState(false);
     const [riveLoaded, setRiveLoaded] = useState(false);
 
@@ -133,6 +134,130 @@ export default function RiveAnimation() {
             setRiveLoaded(true); // Still set to true to show fallback
         },
     });
+
+    // Donation History Item Component
+    const DonationHistoryItem = ({ donation, isCurrentUser, index }) => {
+        const formatTime = (timestamp) => {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            if (diffHours < 24) return `${diffHours}h ago`;
+            return date.toLocaleDateString();
+        };
+
+        const getUsername = (email) => {
+            if (!email) return 'Anonymous';
+            return email.split('@')[0];
+        };
+
+        const amount = parseFloat(donation.amount);
+        const isAnonymous = !donation.user_email;
+
+        return (
+            <div key={`donation-${donation.id}-${index}`} style={{
+                background: isCurrentUser
+                    ? 'rgba(255, 217, 61, 0.1)'
+                    : isAnonymous
+                        ? 'rgba(255, 255, 255, 0.03)'
+                        : 'rgba(255, 255, 255, 0.05)',
+                border: `1px solid ${isCurrentUser ? 'rgba(255, 217, 61, 0.3)' :
+                        isAnonymous ? 'rgba(255, 255, 255, 0.1)' :
+                            'rgba(138, 127, 255, 0.3)'
+                    }`,
+                borderRadius: '8px',
+                padding: '10px 12px',
+                animation: `slideIn 0.3s ease ${index * 0.1}s forward`
+            }}>
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    gap: '8px'
+                }}>
+                    {/* Left side - User and Message */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            marginBottom: '4px'
+                        }}>
+                            <div style={{
+                                width: '6px',
+                                height: '6px',
+                                background: isCurrentUser ? '#FFD93D' :
+                                    isAnonymous ? 'rgba(255, 255, 255, 0.3)' : '#8a7fff',
+                                borderRadius: '50%',
+                                flexShrink: 0
+                            }} />
+                            <div style={{
+                                color: isCurrentUser ? '#FFD93D' :
+                                    isAnonymous ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.9)',
+                                fontSize: '11px',
+                                fontWeight: isAnonymous ? '400' : '600',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                fontStyle: isAnonymous ? 'italic' : 'normal'
+                            }}>
+                                {isCurrentUser ? 'You' : getUsername(donation.user_email)}
+                                {isAnonymous && ' 🎭'}
+                            </div>
+                        </div>
+
+                        <div style={{
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            fontSize: '10px',
+                            lineHeight: '1.3'
+                        }}>
+                            Helped NuNu climb {amount} stair{amount > 1 ? 's' : ''} {isCurrentUser ? '🎉' : '✨'}
+                        </div>
+                    </div>
+
+                    {/* Right side - Amount and Time */}
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-end',
+                        gap: '4px',
+                        flexShrink: 0
+                    }}>
+                        <div style={{
+                            background: isCurrentUser
+                                ? 'rgba(255, 217, 61, 0.2)'
+                                : isAnonymous
+                                    ? 'rgba(255, 255, 255, 0.1)'
+                                    : 'rgba(138, 127, 255, 0.2)',
+                            color: isCurrentUser ? '#FFD93D' :
+                                isAnonymous ? 'rgba(255, 255, 255, 0.7)' : '#8a7fff',
+                            fontSize: '12px',
+                            fontWeight: 'bold',
+                            padding: '4px 8px',
+                            borderRadius: '12px',
+                            minWidth: '45px',
+                            textAlign: 'center',
+                            border: isAnonymous ? '1px solid rgba(255, 255, 255, 0.1)' : 'none'
+                        }}>
+                            ${amount}
+                        </div>
+
+                        <div style={{
+                            color: 'rgba(255, 255, 255, 0.5)',
+                            fontSize: '9px',
+                            whiteSpace: 'nowrap'
+                        }}>
+                            {formatTime(donation.created_at)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     // ======================
     // CONFIGURABLE SETTINGS
@@ -1228,6 +1353,107 @@ export default function RiveAnimation() {
                             </div>
                         </div>
 
+                        {/* Donation History Section */}
+                        <div style={{
+                            background: 'rgba(107, 207, 127, 0.1)',
+                            borderRadius: '10px',
+                            border: '1px solid rgba(107, 207, 127, 0.3)',
+                        }}>
+                            {/* Header - Always Visible */}
+                            <button
+                                onClick={() => setShowDonationHistory(!showDonationHistory)}
+                                style={{
+                                    width: '100%',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    padding: '12px 15px',
+                                    color: '#6bcf7f',
+                                    fontSize: '13px',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    transition: 'all 0.3s ease'
+                                }}
+                                onMouseOver={(e) => {
+                                    e.target.style.background = 'rgba(107, 207, 127, 0.1)';
+                                }}
+                                onMouseOut={(e) => {
+                                    e.target.style.background = 'transparent';
+                                }}
+                            >
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    Recent Donations
+                                    {donationHistory.length > 0 && (  // FIXED: Removed showDonationHistory &&
+                                        <span style={{
+                                            background: 'rgba(138, 127, 255, 0.3)',
+                                            color: '#8a7fff',
+                                            fontSize: '10px',
+                                            padding: '2px 6px',
+                                            borderRadius: '10px',
+                                            minWidth: '20px'
+                                        }}>
+                                            {donationHistory.length}
+                                        </span>
+                                    )}
+                                </span>
+                                <span style={{
+                                    fontSize: '12px',
+                                    transform: showDonationHistory ? 'rotate(180deg)' : 'rotate(0deg)',
+                                    transition: 'transform 0.3s ease'
+                                }}>
+                                    ▼
+                                </span>
+                            </button>
+
+                            {/* Expandable Content */}
+                            {showDonationHistory && (
+                                <div style={{
+                                    borderTop: '1px solid rgba(107, 207, 127, 0.2)',
+                                    background: 'rgba(0, 0, 0, 0.3)',
+                                    maxHeight: '400px',
+                                    display: 'flex',
+                                    flexDirection: 'column'
+                                }}>
+                                    {/* Donation History - Scrollable Section */}
+                                    <div style={{
+                                        flex: 1,
+                                        padding: '15px',
+                                        maxHeight: '250px',
+                                        overflowY: 'auto'
+                                    }} className="donation-history-scrollable">
+                                        {donationHistory.length === 0 ? (
+                                            <div style={{
+                                                color: 'rgba(255, 255, 255, 0.5)',
+                                                fontSize: '11px',
+                                                textAlign: 'center',
+                                                padding: '20px',
+                                                fontStyle: 'italic'
+                                            }}>
+                                                No donations yet. Be the first to help NuNu climb! 🎉
+                                            </div>
+                                        ) : (
+                                            <div style={{
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '8px'
+                                            }}>
+                                                {donationHistory.map((donation, index) => (
+                                                    <DonationHistoryItem
+                                                        key={donation.id}
+                                                        donation={donation}
+                                                        isCurrentUser={user && donation.user_email === user.email}
+                                                        index={index}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         {/* Bar Graph */}
                         <DonationBarGraph isExpanded={isSidebarExpanded}
                             refreshTrigger={graphRefreshTrigger}
@@ -1265,8 +1491,8 @@ export default function RiveAnimation() {
 
             {/* Auth Modal */}
             <AuthModal
-            isOpen={showAuthModal && !user}
-            onClose={closeAuthModal}
+                isOpen={showAuthModal && !user}
+                onClose={closeAuthModal}
             />
 
             {/* CSS Animation for glowing effect */}
@@ -1297,6 +1523,40 @@ export default function RiveAnimation() {
         max-height: 500px;
         transform: translateY(0);
       }
+    }
+      @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    /* Custom scrollbar for donation history */
+    .donation-history-scrollable::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .donation-history-scrollable::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 2px;
+    }
+
+    .donation-history-scrollable::-webkit-scrollbar-thumb {
+      background: rgba(138, 127, 255, 0.3);
+      border-radius: 2px;
+    }
+
+    .donation-history-scrollable::-webkit-scrollbar-thumb:hover {
+      background: rgba(138, 127, 255, 0.5);
+    }
+
+    /* Smooth scrolling */
+    .donation-history-scrollable {
+      scroll-behavior: smooth;
     }
         `}
             </style>
