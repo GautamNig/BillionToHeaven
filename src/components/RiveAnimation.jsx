@@ -316,8 +316,8 @@ export default function RiveAnimation() {
 
     // Background Glow Configuration - Enhanced for glow-only
     const backgroundGlowConfig = {
-        intensity: 0.4,      // Increased intensity for stronger glow
-        size: '95%',         // Slightly larger glow container
+        intensity: 0.9,      // Increased intensity for stronger glow
+        size: '120%',         // Slightly larger glow container
         borderRadius: 15     // Match image borderRadius
     };
 
@@ -822,7 +822,8 @@ export default function RiveAnimation() {
 
                 {/* Fantasy Door Image - Glow Only (No Frame) */}
                 <div style={{
-                    width: '35%',
+                    width: '65%',
+                    height: '120%',
                     minWidth: '400px',
                     position: 'relative',
                     background: '#2b0c5c',
@@ -846,7 +847,7 @@ export default function RiveAnimation() {
       rgba(255,215,0,${backgroundGlowConfig.intensity * 0.5}) 50%, 
       transparent 80%)`,
                         borderRadius: `${backgroundGlowConfig.borderRadius}px`,
-                        padding: '30px' // More padding for glow space
+                        padding: '0px' // More padding for glow space
                     }}>
 
                         {/* Main Door Image - No Border, Just Glow */}
