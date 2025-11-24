@@ -204,7 +204,7 @@ const MainLayout = () => {
                     height: '100%',
                     display: activeTab === 'animation' ? 'block' : 'none'
                 }}>
-                    <RiveAnimation activeTab={activeTab} />
+                    <RiveAnimation />
                 </div>
 
                 {/* HowItWorks - Always mounted but hidden when not active */}

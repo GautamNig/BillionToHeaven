@@ -1,125 +1,153 @@
-// src/components/RiveAnimation.jsx
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useRive } from '@rive-app/react-webgl2';
+// src/components/RiveAnimation.jsx - REFACTORED WITH CUSTOM HOOKS
+import React, { useState, useEffect, useRef } from 'react';
 import { DonationsService } from '../lib/donationsService';
 import useAuth from '../hooks/useAuth';
+import useDonations from '../hooks/useDonations';
+import useRiveAnimation from '../hooks/useRiveAnimation';
+import useThankYouMessages from '../hooks/useThankYouMessages';
 import DonationBarGraph from './DonationBarGraph';
-import { AppSettings } from '../config/settings';
 import DonationThankYouTooltip from './DonationThankYouTooltip';
 import AuthModal from './AuthModal';
-import { UIStrings, getUsername, formatTimeAgo } from '../config/uiStrings';
+import { UIStrings } from '../config/uiStrings';
 import PayPalDonationButton from './PayPalDonationButton';
 import DonationHistoryItem from './DonationHistoryItem';
-import HowItWorks from './HowItWorks';
+import { AppSettings } from '../config/settings';
 
-// Add this to the top of your RiveAnimation.jsx, after the imports
-const DONATION_MESSAGES_CONFIG = {
-    POSITIONS: [
-        { x: 50, y: 20 },  // Top center  
-        { x: 50, y: 90 },  // Bottom center
-    ]
-};
-
-export default function RiveAnimation({ activeTab }) {
-    const [totalMoney, setTotalMoney] = useState(0);
-    const [currentGoal, setCurrentGoal] = useState(1000000000);
-    const [isClimbing, setIsClimbing] = useState(false);
-    const [currentDonation, setCurrentDonation] = useState(0);
-    const [donationHistory, setDonationHistory] = useState([]);
-    const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
-    const [isLoading, setIsLoading] = useState(true);
-    const [debugInfo, setDebugInfo] = useState('');
-    const directionInputRef = useRef();
-    const riveContainerRef = useRef();
-    const [allDonations, setAllDonations] = useState([]);
-    const [graphData, setGraphData] = useState([]);
-    const [graphRefreshTrigger, setGraphRefreshTrigger] = useState(0);
-    const [donationMessages, setDonationMessages] = useState([]);
-    const [customAmount, setCustomAmount] = useState('');
-    const [showCustomInput, setShowCustomInput] = useState(false);
-    const [showDonationHistory, setShowDonationHistory] = useState(false);
-    const [imageLoaded, setImageLoaded] = useState(false);
-    const [riveLoaded, setRiveLoaded] = useState(false);
-
-    const { user, signOut, showAuthModal, openAuthModal, closeAuthModal } = useAuth();
-
-    const { RiveComponent, rive } = useRive({
-        src: `${import.meta.env.BASE_URL}rive/8866-17054-stairs-marcelo-bazani.riv`,
-        autoplay: true,
-        stateMachines: ["State Machine 1"],
-        onLoad: () => {
-            setRiveLoaded(true);
-        },
-        onLoadError: (error) => {
-            setRiveLoaded(true);
-        },
-    });
-
-    // ======================
-    // CONFIGURABLE SETTINGS
-    // ======================
-
-    // Tilt Configuration
-    const tiltConfig = {
+// Configuration objects
+const DOOR_CONFIG = {
+    tilt: {
         perspective: 1000,
         rotateY: -35,
         rotateX: 0,
         scale: 1.0
-    };
+    },
+    glow: {
+        innerGlow: { color: 'rgba(255, 215, 0, 0.6)', blur: 25, spread: 0 },
+        middleGlow: { color: 'rgba(255, 215, 0, 0.4)', blur: 50, spread: 0 },
+        outerGlow: { color: 'rgba(255, 215, 0, 0.2)', blur: 100, spread: 0 },
+        insetGlow: { color: 'rgba(255, 215, 0, 0)', blur: 0, spread: 0 }
+    },
+    border: { width: 0, color: 'transparent', radius: 10 },
+    hover: { rotateY: -10, rotateX: 3, scale: 1.02, glowBoost: 1.5 },
+    backgroundGlow: { intensity: 0.9, size: '120%', borderRadius: 15 },
+    filters: { brightness: 1.1, contrast: 1.1, saturate: 1.2 }
+};
 
-    // Glow Configuration
-    const glowConfig = {
-        innerGlow: {
-            color: 'rgba(255, 215, 0, 0.6)',
-            blur: 25,
-            spread: 0
-        },
-        middleGlow: {
-            color: 'rgba(255, 215, 0, 0.4)',
-            blur: 50,
-            spread: 0
-        },
-        outerGlow: {
-            color: 'rgba(255, 215, 0, 0.2)',
-            blur: 100,
-            spread: 0
-        },
-        insetGlow: {
-            color: 'rgba(255, 215, 0, 0)',
-            blur: 0,
-            spread: 0
+export default function RiveAnimation() {
+    // Custom Hooks
+    const { user} = useAuth();
+    const {
+        totalMoney,
+        currentGoal,
+        donationHistory,
+        allDonations,
+        isLoading,
+        graphRefreshTrigger,
+        handleRealTimeUpdate,
+        addDonation,
+        refreshDonationData
+    } = useDonations(user);
+    
+    const {
+        RiveComponent,
+        rive,
+        isClimbing,
+        currentDonation,
+        debugInfo,
+        riveLoaded,
+        startClimbingAnimation,
+        directionInputRef
+    } = useRiveAnimation();
+    
+    const {
+        donationMessages,
+        showThankYouMessage
+    } = useThankYouMessages();
+
+    // Local State
+    const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
+    const [customAmount, setCustomAmount] = useState('');
+    const [showCustomInput, setShowCustomInput] = useState(false);
+    const [showDonationHistory, setShowDonationHistory] = useState(false);
+    const [imageLoaded, setImageLoaded] = useState(false);
+    const riveContainerRef = useRef();
+
+    // Real-time subscription for donations
+    useEffect(() => {
+        const handleRealTimeDonation = async (payload) => {
+            if (payload.eventType === 'INSERT' && payload.new) {
+                const donation = payload.new;
+
+                // Update stats and graph
+                const updatedDonation = await handleRealTimeUpdate(payload);
+
+                // Handle animation for other users
+                const isOurOwnDonation = user && donation.user_email === user.email;
+                if (!isOurOwnDonation) {
+                    showThankYouMessage(donation);
+                }
+
+                if (!isOurOwnDonation && !isClimbing) {
+                    startClimbingAnimation(donation.amount);
+                }
+            }
+        };
+
+        const subscription = DonationsService.subscribeToDonations(handleRealTimeDonation);
+
+        return () => {
+            if (subscription) {
+                DonationsService.unsubscribe(subscription);
+            }
+        };
+    }, [user, isClimbing, handleRealTimeUpdate, showThankYouMessage, startClimbingAnimation]);
+
+    // Disable mouse events on the Rive canvas
+    useEffect(() => {
+        if (riveContainerRef.current) {
+            const canvas = riveContainerRef.current.querySelector('canvas');
+            if (canvas) {
+                canvas.style.pointerEvents = 'none';
+            }
+        }
+    }, [rive]);
+
+    // Handle successful PayPal donation
+    const handleDonationSuccess = async (amount, paypalDetails) => {
+        try {
+            // Save donation to database
+            const donationRecord = await addDonation(amount, paypalDetails);
+
+            // Show thank you message for current user immediately
+            showThankYouMessage({
+                ...donationRecord,
+                user_email: user?.email,
+                amount: amount
+            });
+
+            // Start climbing animation
+            startClimbingAnimation(amount);
+
+        } catch (error) {
+            // Error handling
         }
     };
 
-    // Border Configuration
-    const borderConfig = {
-        width: 0,
-        color: 'transparent',
-        radius: 10
+    // Format large numbers with commas
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(amount);
     };
 
-    // Hover Effect Configuration
-    const hoverConfig = {
-        rotateY: -10,
-        rotateX: 3,
-        scale: 1.02,
-        glowBoost: 1.5
+    // Format percentage
+    const formatPercentage = (current, goal) => {
+        const percentage = (current / goal) * 100;
+        return Math.min(percentage, 100).toFixed(6);
     };
 
-    // Background Glow Configuration
-    const backgroundGlowConfig = {
-        intensity: 0.9,
-        size: '120%',
-        borderRadius: 15
-    };
-
-    // Filter Effects
-    const filterConfig = {
-        brightness: 1.1,
-        contrast: 1.1,
-        saturate: 1.2
-    };
-
+    // Door image styling helpers
     const getTransform = (config) => {
         return `perspective(${config.perspective}px) rotateY(${config.rotateY}deg) rotateX(${config.rotateX}deg) scale(${config.scale})`;
     };
@@ -138,209 +166,8 @@ export default function RiveAnimation({ activeTab }) {
     `;
     };
 
-    const showThankYouMessage = (donation) => {
-        const messageId = `donation-${donation.id}-${Date.now()}`;
-        const randomPosition = DONATION_MESSAGES_CONFIG.POSITIONS[
-            Math.floor(Math.random() * DONATION_MESSAGES_CONFIG.POSITIONS.length)
-        ];
-
-        const messageWithPosition = {
-            ...donation,
-            id: messageId,
-            position: randomPosition
-        };
-
-        setDonationMessages(prev => [...prev, messageWithPosition]);
-
-        setTimeout(() => {
-            setDonationMessages(prev => prev.filter(msg => msg.id !== messageId));
-        }, AppSettings.DONATION_MESSAGES.DISPLAY_DURATION);
-    };
-
     const getFilters = () => {
-        return `brightness(${filterConfig.brightness}) contrast(${filterConfig.contrast}) saturate(${filterConfig.saturate})`;
-    };
-
-    const handleSignOut = async () => {
-        try {
-            await signOut();
-        } catch (error) {
-            // Error handling without console.log
-        }
-    };
-
-    // Initialize Rive input
-    useEffect(() => {
-        if (rive) {
-            if (rive.stateMachineInputs) {
-                const inputs = rive.stateMachineInputs("State Machine 1");
-                if (inputs && inputs.length > 0) {
-                    directionInputRef.current = inputs[0];
-                    setDebugInfo(UIStrings.DEBUG.DIRECTION_INPUT_FOUND);
-                }
-            }
-        }
-    }, [rive]);
-
-    // Disable mouse events on the Rive canvas
-    useEffect(() => {
-        if (riveContainerRef.current) {
-            const canvas = riveContainerRef.current.querySelector('canvas');
-            if (canvas) {
-                canvas.style.pointerEvents = 'none';
-            }
-        }
-    }, [rive]);
-
-    const startClimbingAnimation = (duration) => {
-        if (!directionInputRef.current) {
-            setDebugInfo(UIStrings.DEBUG.NO_DIRECTION_INPUT);
-            return;
-        }
-
-        setIsClimbing(true);
-
-        try {
-            directionInputRef.current.value = 1;
-            setDebugInfo(UIStrings.DEBUG.CLIMBING_ANIMATION(currentDonation, duration));
-
-            setTimeout(() => {
-                directionInputRef.current.value = 0;
-                setIsClimbing(false);
-                setCurrentDonation(0);
-                setDebugInfo(UIStrings.DEBUG.ANIMATION_COMPLETED);
-            }, duration * 1000);
-
-        } catch (error) {
-            setDebugInfo(`${UIStrings.DEBUG.ANIMATION_ERROR} ${error.message}`);
-        }
-    };
-
-    // Format large numbers with commas
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).format(amount);
-    };
-
-    // Format percentage
-    const formatPercentage = (current, goal) => {
-        const percentage = (current / goal) * 100;
-        return Math.min(percentage, 100).toFixed(6);
-    };
-
-    useEffect(() => {
-        const initializeData = async () => {
-            try {
-                setIsLoading(true);
-
-                const [total, goal, recent, allDonationsData] = await Promise.all([
-                    DonationsService.getTotalAmount(),
-                    DonationsService.getCurrentGoal(),
-                    DonationsService.getRecentDonations(5),
-                    DonationsService.getAllDonations()
-                ]);
-
-                setTotalMoney(total);
-                setCurrentGoal(parseFloat(goal.target_amount));
-                setDonationHistory(recent);
-                setAllDonations(allDonationsData);
-
-            } catch (error) {
-                // Error handling without console.log
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        initializeData();
-    }, []);
-
-    const handleRealTimeUpdate = useCallback(async (payload) => {
-        if (payload.eventType === 'INSERT' && payload.new) {
-            const donation = payload.new;
-
-            // Update stats and graph
-            try {
-                const newTotal = await DonationsService.getTotalAmount();
-                setTotalMoney(newTotal);
-
-                const newRecent = await DonationsService.getRecentDonations(5);
-                setDonationHistory(newRecent);
-
-                const newAllDonations = await DonationsService.getAllDonations();
-                setAllDonations(newAllDonations);
-
-                setGraphRefreshTrigger(prev => prev + 1);
-            } catch (error) {
-                // Error handling without console.log
-            }
-
-            // Handle animation for other users
-            const isOurOwnDonation = user && donation.user_email === user.email;
-            if (!isOurOwnDonation) {
-                showThankYouMessage(donation);
-            }
-
-            if (!isOurOwnDonation && !isClimbing) {
-                const duration = (donation.amount * 3) / 5;
-                setCurrentDonation(donation.amount);
-                startClimbingAnimation(duration);
-            }
-        }
-    }, [user, isClimbing]);
-
-    useEffect(() => {
-        const subscription = DonationsService.subscribeToDonations(handleRealTimeUpdate);
-
-        return () => {
-            if (subscription) {
-                DonationsService.unsubscribe(subscription);
-            }
-        };
-    }, [handleRealTimeUpdate]);
-
-    // Handle successful PayPal donation
-    const handleDonationSuccess = async (amount, paypalDetails) => {
-        try {
-            setCurrentDonation(amount);
-            setDebugInfo(UIStrings.DONATION.DONATION_RECEIVED(amount));
-
-            // Save donation to database
-            const donationRecord = await DonationsService.addDonation(
-                amount,
-                user?.id,
-                user?.email
-            );
-
-            // Refresh all data
-            const newTotal = await DonationsService.getTotalAmount();
-            setTotalMoney(newTotal);
-
-            const newRecent = await DonationsService.getRecentDonations(5);
-            setDonationHistory(newRecent);
-            setGraphRefreshTrigger(prev => prev + 1);
-
-            const newAllDonations = await DonationsService.getAllDonations();
-            setAllDonations(newAllDonations);
-
-            // Show thank you message for current user immediately
-            showThankYouMessage({
-                ...donationRecord,
-                user_email: user?.email,
-                amount: amount
-            });
-
-            // Calculate animation duration
-            const stairsToClimb = amount;
-            const duration = (stairsToClimb * 3) / 5;
-
-            startClimbingAnimation(duration);
-
-        } catch (error) {
-            setDebugInfo(`${UIStrings.DEBUG.PROCESSING_DONATION_ERROR} ${error.message}`);
-        }
+        return `brightness(${DOOR_CONFIG.filters.brightness}) contrast(${DOOR_CONFIG.filters.contrast}) saturate(${DOOR_CONFIG.filters.saturate})`;
     };
 
     const sidebarWidth = isSidebarExpanded ? '350px' : '60px';
@@ -460,16 +287,16 @@ export default function RiveAnimation({ activeTab }) {
                     {/* Enhanced Glow Container */}
                     <div style={{
                         position: 'relative',
-                        width: backgroundGlowConfig.size,
-                        height: backgroundGlowConfig.size,
+                        width: DOOR_CONFIG.backgroundGlow.size,
+                        height: DOOR_CONFIG.backgroundGlow.size,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         background: `radial-gradient(ellipse at center, 
-      rgba(255,215,0,${backgroundGlowConfig.intensity}) 0%, 
-      rgba(255,215,0,${backgroundGlowConfig.intensity * 0.5}) 50%, 
+      rgba(255,215,0,${DOOR_CONFIG.backgroundGlow.intensity}) 0%, 
+      rgba(255,215,0,${DOOR_CONFIG.backgroundGlow.intensity * 0.5}) 50%, 
       transparent 80%)`,
-                        borderRadius: `${backgroundGlowConfig.borderRadius}px`,
+                        borderRadius: `${DOOR_CONFIG.backgroundGlow.borderRadius}px`,
                         padding: '0px'
                     }}>
 
@@ -486,27 +313,27 @@ export default function RiveAnimation({ activeTab }) {
                                 height: '100%',
                                 objectFit: 'cover',
                                 objectPosition: 'center',
-                                transform: getTransform(tiltConfig),
-                                borderRadius: `${borderConfig.radius}px`,
+                                transform: getTransform(DOOR_CONFIG.tilt),
+                                borderRadius: `${DOOR_CONFIG.border.radius}px`,
                                 border: 'none',
-                                boxShadow: getGlowShadow(glowConfig),
+                                boxShadow: getGlowShadow(DOOR_CONFIG.glow),
                                 filter: getFilters(),
                                 transition: 'all 0.5s ease'
                             }}
                             onMouseEnter={(e) => {
                                 const hoverTransform = getTransform({
-                                    ...tiltConfig,
-                                    rotateY: hoverConfig.rotateY,
-                                    rotateX: hoverConfig.rotateX,
-                                    scale: hoverConfig.scale
+                                    ...DOOR_CONFIG.tilt,
+                                    rotateY: DOOR_CONFIG.hover.rotateY,
+                                    rotateX: DOOR_CONFIG.hover.rotateX,
+                                    scale: DOOR_CONFIG.hover.scale
                                 });
 
                                 e.target.style.transform = hoverTransform;
-                                e.target.style.boxShadow = getGlowShadow(glowConfig, hoverConfig.glowBoost);
+                                e.target.style.boxShadow = getGlowShadow(DOOR_CONFIG.glow, DOOR_CONFIG.hover.glowBoost);
                             }}
                             onMouseLeave={(e) => {
-                                e.target.style.transform = getTransform(tiltConfig);
-                                e.target.style.boxShadow = getGlowShadow(glowConfig);
+                                e.target.style.transform = getTransform(DOOR_CONFIG.tilt);
+                                e.target.style.boxShadow = getGlowShadow(DOOR_CONFIG.glow);
                             }}
                         />
 
@@ -519,9 +346,9 @@ export default function RiveAnimation({ activeTab }) {
                             bottom: '-20px',
                             background: `radial-gradient(ellipse at center, 
         transparent 20%, 
-        rgba(255,215,0,${backgroundGlowConfig.intensity * 0.3}) 60%, 
-        rgba(255,215,0,${backgroundGlowConfig.intensity * 0.1}) 100%)`,
-                            borderRadius: `${backgroundGlowConfig.borderRadius + 10}px`,
+        rgba(255,215,0,${DOOR_CONFIG.backgroundGlow.intensity * 0.3}) 60%, 
+        rgba(255,215,0,${DOOR_CONFIG.backgroundGlow.intensity * 0.1}) 100%)`,
+                            borderRadius: `${DOOR_CONFIG.backgroundGlow.borderRadius + 10}px`,
                             pointerEvents: 'none',
                             animation: 'pulse-glow 4s ease-in-out infinite'
                         }} />
@@ -541,14 +368,14 @@ export default function RiveAnimation({ activeTab }) {
         radial-gradient(3px 3px at 90% 30%, rgba(255,215,0,0.9), transparent),
         radial-gradient(2px 2px at 20% 70%, rgba(255,215,0,0.7), transparent)
       `,
-                            borderRadius: `${backgroundGlowConfig.borderRadius + 5}px`,
+                            borderRadius: `${DOOR_CONFIG.backgroundGlow.borderRadius + 5}px`,
                             pointerEvents: 'none',
                             animation: 'float 8s ease-in-out infinite'
                         }} />
 
                     </div>
 
-                    {/* Rest remains the same */}
+                    {/* Gradient Overlay */}
                     <div style={{
                         position: 'absolute',
                         top: 0,
@@ -558,6 +385,8 @@ export default function RiveAnimation({ activeTab }) {
                         background: 'linear-gradient(90deg, #2b0c5c, transparent)',
                         pointerEvents: 'none'
                     }} />
+                    
+                    {/* Loading State for Door Image */}
                     {!imageLoaded && (
                         <div style={{
                             position: 'absolute',
@@ -646,25 +475,25 @@ export default function RiveAnimation({ activeTab }) {
                 zIndex: 1000
             }}>
                 <div style={{
-    padding: '15px 20px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-    display: 'flex',
-    justifyContent: 'center', // Center the title
-    alignItems: 'center',
-    minHeight: '60px',
-    background: 'rgba(255, 255, 255, 0.05)'
-}}>
-    <div style={{
-        color: 'white',
-        fontSize: '18px',
-        fontWeight: 'bold',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px'
-    }}>
-        💝 Donate
-    </div>
-</div>
+                    padding: '15px 20px',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    minHeight: '60px',
+                    background: 'rgba(255, 255, 255, 0.05)'
+                }}>
+                    <div style={{
+                        color: 'white',
+                        fontSize: '18px',
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}>
+                        💝 Donate
+                    </div>
+                </div>
 
                 {/* Sidebar Content - ALWAYS SHOW DONATION CONTENT (no tab logic) */}
                 {isSidebarExpanded && (
@@ -988,9 +817,11 @@ export default function RiveAnimation({ activeTab }) {
                         </div>
 
                         {/* Bar Graph */}
-                        <DonationBarGraph isExpanded={isSidebarExpanded}
+                        <DonationBarGraph 
+                            isExpanded={isSidebarExpanded}
                             refreshTrigger={graphRefreshTrigger}
-                            allDonations={allDonations} />
+                            allDonations={allDonations} 
+                        />
 
                     </div>
                 )}
