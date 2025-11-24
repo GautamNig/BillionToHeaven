@@ -1,0 +1,134 @@
+/* src/styles/animations.css */
+
+/* Pulse glow animation for door */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 
+      0 0 30px rgba(255, 215, 0, 0.3),
+      0 0 60px rgba(255, 215, 0, 0.2),
+      0 0 90px rgba(255, 215, 0, 0.1);
+  }
+  50% {
+    box-shadow: 
+      0 0 40px rgba(255, 215, 0, 0.4),
+      0 0 80px rgba(255, 215, 0, 0.3),
+      0 0 120px rgba(255, 215, 0, 0.2);
+  }
+}
+
+/* Slide animations */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Magic reveal animation */
+@keyframes magicReveal {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    max-height: 800px;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Bounce animation */
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-5px);
+  }
+  60% {
+    transform: translateY(-3px);
+  }
+}
+
+/* Spin animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Pulse animation */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+/* Float animation for particles */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Custom scrollbar for donation history */
+.donation-history-scrollable::-webkit-scrollbar {
+  width: 4px;
+}
+
+.donation-history-scrollable::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+}
+
+.donation-history-scrollable::-webkit-scrollbar-thumb {
+  background: rgba(138, 127, 255, 0.3);
+  border-radius: 2px;
+}
+
+.donation-history-scrollable::-webkit-scrollbar-thumb:hover {
+  background: rgba(138, 127, 255, 0.5);
+}
+
+/* Smooth scrolling */
+.donation-history-scrollable {
+  scroll-behavior: smooth;
+}
