@@ -1,13 +1,16 @@
 // src/components/RiveAnimation.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRive } from '@rive-app/react-webgl2';
-import { PayPalButtons, usePayPalScriptReducer } from '@paypal/react-paypal-js';
 import { DonationsService } from '../lib/donationsService';
 import useAuth from '../hooks/useAuth';
 import DonationBarGraph from './DonationBarGraph';
 import { AppSettings } from '../config/settings';
 import DonationThankYouTooltip from './DonationThankYouTooltip';
 import AuthModal from './AuthModal';
+import { UIStrings, getUsername, formatTimeAgo } from '../config/uiStrings';
+import PayPalDonationButton from './PayPalDonationButton';
+import DonationHistoryItem from './DonationHistoryItem';
+import HowItWorks from './HowItWorks';
 
 // Add this to the top of your RiveAnimation.jsx, after the imports
 const DONATION_MESSAGES_CONFIG = {
@@ -17,86 +20,7 @@ const DONATION_MESSAGES_CONFIG = {
     ]
 };
 
-// Your existing PayPalDonationButton component should handle any amount
-function PayPalDonationButton({ amount, onDonationSuccess, disabled }) {
-    const [{ isPending, isRejected }] = usePayPalScriptReducer();
-
-    const createOrder = (data, actions) => {
-        // Validate amount
-        const validAmount = Math.max(1, parseFloat(amount) || 1);
-
-        return actions.order.create({
-            purchase_units: [
-                {
-                    amount: {
-                        value: validAmount.toString(),
-                        currency_code: "USD"
-                    },
-                    description: `Donation for ${validAmount} stair${validAmount > 1 ? 's' : ''}`
-                }
-            ]
-        });
-    };
-
-    const onApprove = (data, actions) => {
-        return actions.order.capture().then((details) => {
-            console.log('🎉 PayPal donation approved:', details);
-            const validAmount = Math.max(1, parseFloat(amount) || 1);
-            onDonationSuccess(validAmount, details);
-        });
-    };
-
-    const onError = (err) => {
-        console.error('❌ PayPal error:', err);
-    };
-
-    // Rest of your existing PayPalDonationButton code...
-    if (isRejected) {
-        return (
-            <div style={{
-                color: '#ff6b6b',
-                fontSize: '12px',
-                textAlign: 'center',
-                padding: '10px'
-            }}>
-                PayPal failed to load
-            </div>
-        );
-    }
-
-    if (isPending) {
-        return (
-            <div style={{
-                color: '#ffd93d',
-                fontSize: '12px',
-                textAlign: 'center',
-                padding: '10px'
-            }}>
-                Loading PayPal...
-            </div>
-        );
-    }
-
-    return (
-        <div style={{ width: '100%' }}>
-            <PayPalButtons
-                createOrder={createOrder}
-                onApprove={onApprove}
-                onError={onError}
-                style={{
-                    layout: 'vertical',
-                    color: 'gold',
-                    shape: 'pill',
-                    label: 'donate',
-                    height: 40
-                }}
-                disabled={disabled}
-            />
-        </div>
-    );
-}
-
-export default function RiveAnimation() {
+export default function RiveAnimation({ activeTab }) {
     const [totalMoney, setTotalMoney] = useState(0);
     const [currentGoal, setCurrentGoal] = useState(1000000000);
     const [isClimbing, setIsClimbing] = useState(false);
@@ -107,14 +31,12 @@ export default function RiveAnimation() {
     const [debugInfo, setDebugInfo] = useState('');
     const directionInputRef = useRef();
     const riveContainerRef = useRef();
-    // In RiveAnimation.jsx - Add these states
     const [allDonations, setAllDonations] = useState([]);
     const [graphData, setGraphData] = useState([]);
     const [graphRefreshTrigger, setGraphRefreshTrigger] = useState(0);
     const [donationMessages, setDonationMessages] = useState([]);
     const [customAmount, setCustomAmount] = useState('');
     const [showCustomInput, setShowCustomInput] = useState(false);
-    const [showHowItWorks, setShowHowItWorks] = useState(false);
     const [showDonationHistory, setShowDonationHistory] = useState(false);
     const [imageLoaded, setImageLoaded] = useState(false);
     const [riveLoaded, setRiveLoaded] = useState(false);
@@ -126,138 +48,12 @@ export default function RiveAnimation() {
         autoplay: true,
         stateMachines: ["State Machine 1"],
         onLoad: () => {
-            console.log('✅ Rive animation loaded');
             setRiveLoaded(true);
         },
         onLoadError: (error) => {
-            console.error('❌ Rive loading error:', error);
-            setRiveLoaded(true); // Still set to true to show fallback
+            setRiveLoaded(true);
         },
     });
-
-    // Donation History Item Component
-    const DonationHistoryItem = ({ donation, isCurrentUser, index }) => {
-        const formatTime = (timestamp) => {
-            const date = new Date(timestamp);
-            const now = new Date();
-            const diffMs = now - date;
-            const diffMins = Math.floor(diffMs / 60000);
-            const diffHours = Math.floor(diffMs / 3600000);
-
-            if (diffMins < 1) return 'Just now';
-            if (diffMins < 60) return `${diffMins}m ago`;
-            if (diffHours < 24) return `${diffHours}h ago`;
-            return date.toLocaleDateString();
-        };
-
-        const getUsername = (email) => {
-            if (!email) return 'Anonymous';
-            return email.split('@')[0];
-        };
-
-        const amount = parseFloat(donation.amount);
-        const isAnonymous = !donation.user_email;
-
-        return (
-            <div key={`donation-${donation.id}-${index}`} style={{
-                background: isCurrentUser
-                    ? 'rgba(255, 217, 61, 0.1)'
-                    : isAnonymous
-                        ? 'rgba(255, 255, 255, 0.03)'
-                        : 'rgba(255, 255, 255, 0.05)',
-                border: `1px solid ${isCurrentUser ? 'rgba(255, 217, 61, 0.3)' :
-                        isAnonymous ? 'rgba(255, 255, 255, 0.1)' :
-                            'rgba(138, 127, 255, 0.3)'
-                    }`,
-                borderRadius: '8px',
-                padding: '10px 12px',
-                animation: `slideIn 0.3s ease ${index * 0.1}s forward`
-            }}>
-                <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    gap: '8px'
-                }}>
-                    {/* Left side - User and Message */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            marginBottom: '4px'
-                        }}>
-                            <div style={{
-                                width: '6px',
-                                height: '6px',
-                                background: isCurrentUser ? '#FFD93D' :
-                                    isAnonymous ? 'rgba(255, 255, 255, 0.3)' : '#8a7fff',
-                                borderRadius: '50%',
-                                flexShrink: 0
-                            }} />
-                            <div style={{
-                                color: isCurrentUser ? '#FFD93D' :
-                                    isAnonymous ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.9)',
-                                fontSize: '11px',
-                                fontWeight: isAnonymous ? '400' : '600',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                fontStyle: isAnonymous ? 'italic' : 'normal'
-                            }}>
-                                {isCurrentUser ? 'You' : getUsername(donation.user_email)}
-                                {isAnonymous && ' 🎭'}
-                            </div>
-                        </div>
-
-                        <div style={{
-                            color: 'rgba(255, 255, 255, 0.7)',
-                            fontSize: '10px',
-                            lineHeight: '1.3'
-                        }}>
-                            Helped NuNu climb {amount} stair{amount > 1 ? 's' : ''} {isCurrentUser ? '🎉' : '✨'}
-                        </div>
-                    </div>
-
-                    {/* Right side - Amount and Time */}
-                    <div style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'flex-end',
-                        gap: '4px',
-                        flexShrink: 0
-                    }}>
-                        <div style={{
-                            background: isCurrentUser
-                                ? 'rgba(255, 217, 61, 0.2)'
-                                : isAnonymous
-                                    ? 'rgba(255, 255, 255, 0.1)'
-                                    : 'rgba(138, 127, 255, 0.2)',
-                            color: isCurrentUser ? '#FFD93D' :
-                                isAnonymous ? 'rgba(255, 255, 255, 0.7)' : '#8a7fff',
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            padding: '4px 8px',
-                            borderRadius: '12px',
-                            minWidth: '45px',
-                            textAlign: 'center',
-                            border: isAnonymous ? '1px solid rgba(255, 255, 255, 0.1)' : 'none'
-                        }}>
-                            ${amount}
-                        </div>
-
-                        <div style={{
-                            color: 'rgba(255, 255, 255, 0.5)',
-                            fontSize: '9px',
-                            whiteSpace: 'nowrap'
-                        }}>
-                            {formatTime(donation.created_at)}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    };
 
     // ======================
     // CONFIGURABLE SETTINGS
@@ -265,33 +61,29 @@ export default function RiveAnimation() {
 
     // Tilt Configuration
     const tiltConfig = {
-        perspective: 1000,    // Higher = more dramatic 3D effect
-        rotateY: -35,         // Negative = facing left, Positive = facing right
-        rotateX: 0,           // Negative = leaning back, Positive = leaning forward
-        scale: 1.0            // Image size (1.0 = normal, 1.1 = slightly larger)
+        perspective: 1000,
+        rotateY: -35,
+        rotateX: 0,
+        scale: 1.0
     };
 
-    // Glow Configuration - Enhanced for glow-only effect
+    // Glow Configuration
     const glowConfig = {
-        // Inner glow (close to image edges)
         innerGlow: {
-            color: 'rgba(255, 215, 0, 0.6)',  // Brighter inner glow
-            blur: 25,                         // px - inner glow spread
-            spread: 0                         // px - no spread for clean edges
+            color: 'rgba(255, 215, 0, 0.6)',
+            blur: 25,
+            spread: 0
         },
-        // Middle glow
         middleGlow: {
             color: 'rgba(255, 215, 0, 0.4)',
             blur: 50,
             spread: 0
         },
-        // Outer glow (soft halo)
         outerGlow: {
             color: 'rgba(255, 215, 0, 0.2)',
             blur: 100,
             spread: 0
         },
-        // No inset glow since we're removing the frame
         insetGlow: {
             color: 'rgba(255, 215, 0, 0)',
             blur: 0,
@@ -299,40 +91,39 @@ export default function RiveAnimation() {
         }
     };
 
-    // Border Configuration - REMOVED (set to transparent/zero)
+    // Border Configuration
     const borderConfig = {
-        width: 0,                           // No border
-        color: 'transparent',               // Transparent color
-        radius: 10                          // Keep some radius for the image itself
+        width: 0,
+        color: 'transparent',
+        radius: 10
     };
 
     // Hover Effect Configuration
     const hoverConfig = {
-        rotateY: -10,        // Less tilt on hover
-        rotateX: 3,          // Less vertical tilt on hover  
-        scale: 1.02,         // Slight zoom on hover
-        glowBoost: 1.5       // More glow boost on hover (1.5 = 50% brighter)
+        rotateY: -10,
+        rotateX: 3,
+        scale: 1.02,
+        glowBoost: 1.5
     };
 
-    // Background Glow Configuration - Enhanced for glow-only
+    // Background Glow Configuration
     const backgroundGlowConfig = {
-        intensity: 0.9,      // Increased intensity for stronger glow
-        size: '120%',         // Slightly larger glow container
-        borderRadius: 15     // Match image borderRadius
+        intensity: 0.9,
+        size: '120%',
+        borderRadius: 15
     };
 
     // Filter Effects
     const filterConfig = {
-        brightness: 1.1,     // 1.0 = normal, >1.0 = brighter
-        contrast: 1.1,       // 1.0 = normal, >1.0 = more contrast
-        saturate: 1.2        // 1.0 = normal, >1.0 = more saturated
+        brightness: 1.1,
+        contrast: 1.1,
+        saturate: 1.2
     };
 
     const getTransform = (config) => {
         return `perspective(${config.perspective}px) rotateY(${config.rotateY}deg) rotateX(${config.rotateX}deg) scale(${config.scale})`;
     };
 
-    // Helper function to generate glow shadows
     const getGlowShadow = (glowConfig, hoverMultiplier = 1) => {
         const inner = glowConfig.innerGlow;
         const middle = glowConfig.middleGlow;
@@ -347,14 +138,12 @@ export default function RiveAnimation() {
     `;
     };
 
-    // Add this function to show a thank you message
     const showThankYouMessage = (donation) => {
         const messageId = `donation-${donation.id}-${Date.now()}`;
         const randomPosition = DONATION_MESSAGES_CONFIG.POSITIONS[
             Math.floor(Math.random() * DONATION_MESSAGES_CONFIG.POSITIONS.length)
         ];
 
-        // Add message to state
         const messageWithPosition = {
             ...donation,
             id: messageId,
@@ -363,42 +152,31 @@ export default function RiveAnimation() {
 
         setDonationMessages(prev => [...prev, messageWithPosition]);
 
-        // Remove message after configured duration
         setTimeout(() => {
             setDonationMessages(prev => prev.filter(msg => msg.id !== messageId));
         }, AppSettings.DONATION_MESSAGES.DISPLAY_DURATION);
     };
 
-    // Helper function to generate filters
     const getFilters = () => {
         return `brightness(${filterConfig.brightness}) contrast(${filterConfig.contrast}) saturate(${filterConfig.saturate})`;
     };
 
-
-    // Add this signout handler function
     const handleSignOut = async () => {
         try {
             await signOut();
-            console.log('👋 User signed out successfully');
-            // You can add any additional cleanup or redirect logic here
         } catch (error) {
-            console.error('❌ Failed to sign out:', error);
+            // Error handling without console.log
         }
     };
 
     // Initialize Rive input
     useEffect(() => {
         if (rive) {
-            console.log('🔄 Rive instance available');
-
             if (rive.stateMachineInputs) {
                 const inputs = rive.stateMachineInputs("State Machine 1");
-                console.log('🔍 State Machine Inputs:', inputs);
-
                 if (inputs && inputs.length > 0) {
                     directionInputRef.current = inputs[0];
-                    console.log('✅ Direction input found');
-                    setDebugInfo('Rive input initialized successfully');
+                    setDebugInfo(UIStrings.DEBUG.DIRECTION_INPUT_FOUND);
                 }
             }
         }
@@ -410,42 +188,31 @@ export default function RiveAnimation() {
             const canvas = riveContainerRef.current.querySelector('canvas');
             if (canvas) {
                 canvas.style.pointerEvents = 'none';
-                console.log('✅ Mouse interactions disabled on Rive canvas');
             }
         }
     }, [rive]);
 
     const startClimbingAnimation = (duration) => {
-        console.log('🎬 Starting climbing animation...');
-
         if (!directionInputRef.current) {
-            console.log('❌ No direction input reference');
-            setDebugInfo('No direction input reference');
+            setDebugInfo(UIStrings.DEBUG.NO_DIRECTION_INPUT);
             return;
         }
 
-        console.log('🎯 Setting direction to 1');
         setIsClimbing(true);
 
         try {
-            // Start climbing
             directionInputRef.current.value = 1;
-            console.log('✅ Direction set to 1');
-            setDebugInfo(`Climbing ${currentDonation} stairs for ${duration}s`);
+            setDebugInfo(UIStrings.DEBUG.CLIMBING_ANIMATION(currentDonation, duration));
 
-            // Stop after duration
             setTimeout(() => {
-                console.log('🛑 Setting direction to 0');
                 directionInputRef.current.value = 0;
                 setIsClimbing(false);
                 setCurrentDonation(0);
-                setDebugInfo('Animation completed');
-                console.log('✅ Direction set to 0');
+                setDebugInfo(UIStrings.DEBUG.ANIMATION_COMPLETED);
             }, duration * 1000);
 
         } catch (error) {
-            console.error('❌ Error controlling animation:', error);
-            setDebugInfo(`Animation error: ${error.message}`);
+            setDebugInfo(`${UIStrings.DEBUG.ANIMATION_ERROR} ${error.message}`);
         }
     };
 
@@ -463,19 +230,11 @@ export default function RiveAnimation() {
         return Math.min(percentage, 100).toFixed(6);
     };
 
-    const formatDonationTime = (timestamp) => {
-        const date = new Date(timestamp);
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    };
-
-
     useEffect(() => {
         const initializeData = async () => {
             try {
-                console.log('📥 Loading initial data...');
                 setIsLoading(true);
 
-                // Load all data in parallel for better performance
                 const [total, goal, recent, allDonationsData] = await Promise.all([
                     DonationsService.getTotalAmount(),
                     DonationsService.getCurrentGoal(),
@@ -488,10 +247,8 @@ export default function RiveAnimation() {
                 setDonationHistory(recent);
                 setAllDonations(allDonationsData);
 
-                console.log('✅ Initial data loaded successfully');
-
             } catch (error) {
-                console.error('❌ Error loading initial data:', error);
+                // Error handling without console.log
             } finally {
                 setIsLoading(false);
             }
@@ -501,11 +258,8 @@ export default function RiveAnimation() {
     }, []);
 
     const handleRealTimeUpdate = useCallback(async (payload) => {
-        console.log('📡 Real-time donation event:', payload);
-
         if (payload.eventType === 'INSERT' && payload.new) {
             const donation = payload.new;
-            console.log('💫 New donation detected:', donation);
 
             // Update stats and graph
             try {
@@ -520,38 +274,27 @@ export default function RiveAnimation() {
 
                 setGraphRefreshTrigger(prev => prev + 1);
             } catch (error) {
-                console.error('❌ Error updating stats:', error);
+                // Error handling without console.log
             }
 
             // Handle animation for other users
             const isOurOwnDonation = user && donation.user_email === user.email;
             if (!isOurOwnDonation) {
-                console.log('💌 Showing thank you message for OTHER user');
                 showThankYouMessage(donation);
-            } else {
-                console.log('🔄 Skipping message - our own donation (handled locally)');
             }
 
             if (!isOurOwnDonation && !isClimbing) {
-                console.log(`🎬 Playing remote animation: $${donation.amount}`);
                 const duration = (donation.amount * 3) / 5;
                 setCurrentDonation(donation.amount);
                 startClimbingAnimation(duration);
-            } else if (isOurOwnDonation) {
-                console.log('🔄 Skipping animation - our own donation');
-            } else if (isClimbing) {
-                console.log('⏳ Skipping animation - already climbing');
             }
         }
     }, [user, isClimbing]);
 
     useEffect(() => {
-        console.log('🎯 Setting up real-time subscription...');
-
         const subscription = DonationsService.subscribeToDonations(handleRealTimeUpdate);
 
         return () => {
-            console.log('🧹 Cleaning up real-time subscription');
             if (subscription) {
                 DonationsService.unsubscribe(subscription);
             }
@@ -561,9 +304,8 @@ export default function RiveAnimation() {
     // Handle successful PayPal donation
     const handleDonationSuccess = async (amount, paypalDetails) => {
         try {
-            console.log('💰 Donation success:', amount, paypalDetails);
             setCurrentDonation(amount);
-            setDebugInfo(`Donation received: $${amount}`);
+            setDebugInfo(UIStrings.DONATION.DONATION_RECEIVED(amount));
 
             // Save donation to database
             const donationRecord = await DonationsService.addDonation(
@@ -571,24 +313,17 @@ export default function RiveAnimation() {
                 user?.id,
                 user?.email
             );
-            console.log('💾 Donation saved to DB:', donationRecord);
 
-            // FORCE REFRESH ALL DATA IMMEDIATELY
-            console.log('🔄 Force refreshing ALL UI data...');
-
-            // Refresh total amount
+            // Refresh all data
             const newTotal = await DonationsService.getTotalAmount();
             setTotalMoney(newTotal);
 
-            // Refresh recent donations
             const newRecent = await DonationsService.getRecentDonations(5);
             setDonationHistory(newRecent);
             setGraphRefreshTrigger(prev => prev + 1);
-            // Refresh ALL donations for graph
+
             const newAllDonations = await DonationsService.getAllDonations();
             setAllDonations(newAllDonations);
-
-            console.log('✅ ALL UI data force refreshed');
 
             // Show thank you message for current user immediately
             showThankYouMessage({
@@ -601,13 +336,10 @@ export default function RiveAnimation() {
             const stairsToClimb = amount;
             const duration = (stairsToClimb * 3) / 5;
 
-            console.log(`⏱️ Starting animation: ${stairsToClimb} stairs for ${duration} seconds`);
             startClimbingAnimation(duration);
 
-
         } catch (error) {
-            console.error('❌ Error processing donation:', error);
-            setDebugInfo(`Error: ${error.message}`);
+            setDebugInfo(`${UIStrings.DEBUG.PROCESSING_DONATION_ERROR} ${error.message}`);
         }
     };
 
@@ -624,7 +356,7 @@ export default function RiveAnimation() {
                 color: 'white',
                 fontSize: '18px'
             }}>
-                Loading donation data...
+                {UIStrings.GENERAL.LOADING}
             </div>
         );
     }
@@ -632,7 +364,7 @@ export default function RiveAnimation() {
     return (
         <div style={{
             position: 'fixed',
-            top: 0,
+            top: '60px',
             left: 0,
             width: '100vw',
             height: '100vh',
@@ -684,7 +416,7 @@ export default function RiveAnimation() {
                                 borderRadius: '10px',
                                 border: '1px solid rgba(255, 215, 0, 0.3)'
                             }}>
-                                ⚡ Loading Animation...
+                                {UIStrings.ANIMATION.LOADING}
                             </div>
                         )}
                     </div>
@@ -706,419 +438,9 @@ export default function RiveAnimation() {
                             backdropFilter: 'blur(10px)',
                             pointerEvents: 'none'
                         }}>
-                            🎯 Climbing {currentDonation} stair{currentDonation > 1 ? 's' : ''}...
+                            {UIStrings.DONATION.CLIMBING_STATUS(currentDonation)}
                         </div>
                     )}
-
-{/* Magical How It Works Section - Enhanced with Scroll */}
-<div style={{
-    background: 'linear-gradient(135deg, rgba(107, 207, 127, 0.15), rgba(138, 127, 255, 0.15))',
-    borderRadius: '16px',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    position: 'absolute',
-    top: '20px',
-    left: '20px',
-    zIndex: 1000,
-    maxWidth: '380px',
-    maxHeight: '80vh', // Limit height to viewport
-    backdropFilter: 'blur(20px)',
-    overflow: 'hidden', // Keep hidden for container
-    transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-    boxShadow: `
-        0 8px 32px rgba(0, 0, 0, 0.3),
-        0 2px 8px rgba(107, 207, 127, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1)
-    `
-}}>
-    {/* Animated Background Particles */}
-    <div style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: `
-            radial-gradient(4px 4px at 20% 30%, rgba(255,215,0,0.6), transparent),
-            radial-gradient(3px 3px at 80% 70%, rgba(107,207,127,0.5), transparent),
-            radial-gradient(2px 2px at 40% 20%, rgba(138,127,255,0.4), transparent),
-            radial-gradient(3px 3px at 60% 80%, rgba(255,107,107,0.3), transparent)
-        `,
-        pointerEvents: 'none',
-        animation: 'float 6s ease-in-out infinite'
-    }} />
-
-    {/* Header - Magical Button */}
-    <button
-        onClick={() => setShowHowItWorks(!showHowItWorks)}
-        style={{
-            width: '100%',
-            background: 'linear-gradient(135deg, rgba(107, 207, 127, 0.2), rgba(138, 127, 255, 0.2))',
-            border: 'none',
-            padding: '16px 20px',
-            color: '#fff',
-            fontSize: '15px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            transition: 'all 0.3s ease',
-            position: 'relative',
-            overflow: 'hidden'
-        }}
-        onMouseOver={(e) => {
-            e.target.style.background = 'linear-gradient(135deg, rgba(107, 207, 127, 0.3), rgba(138, 127, 255, 0.3))';
-            e.target.style.transform = 'translateY(-1px)';
-        }}
-        onMouseOut={(e) => {
-            e.target.style.background = 'linear-gradient(135deg, rgba(107, 207, 127, 0.2), rgba(138, 127, 255, 0.2))';
-            e.target.style.transform = 'translateY(0)';
-        }}
-    >
-        {/* Animated Sparkle Effect */}
-        <div style={{
-            position: 'absolute',
-            top: 0,
-            left: '-100%',
-            width: '100%',
-            height: '100%',
-            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
-            transition: 'left 0.6s ease',
-            pointerEvents: 'none'
-        }} 
-        onMouseOver={(e) => {
-            e.target.style.left = '100%';
-        }}
-        />
-        
-        <span style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '12px',
-            textShadow: '0 2px 4px rgba(0,0,0,0.3)'
-        }}>
-            <span style={{
-                fontSize: '18px',
-                animation: 'bounce 2s infinite'
-            }}>✨</span>
-            The Magical Journey
-            <span style={{
-                fontSize: '18px',
-                animation: 'bounce 2s infinite 0.5s'
-            }}>🌟</span>
-        </span>
-        <span style={{
-            fontSize: '14px',
-            transform: showHowItWorks ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-            background: 'rgba(255,255,255,0.1)',
-            borderRadius: '50%',
-            width: '24px',
-            height: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-        }}>
-            ▼
-        </span>
-    </button>
-
-    {/* Expandable Content with Scroll */}
-    {showHowItWorks && (
-        <div style={{
-            maxHeight: 'calc(80vh - 80px)', // Subtract header height
-            overflowY: 'auto', // Enable scrolling
-            background: 'rgba(0, 0, 0, 0.4)',
-            animation: 'magicReveal 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
-        }} className="how-it-works-scrollable">
-            
-            {/* Header Section */}
-            <div style={{
-                padding: '20px 20px 16px',
-                background: 'linear-gradient(135deg, rgba(255,215,0,0.1), rgba(107,207,127,0.1))',
-                borderBottom: '1px solid rgba(255,255,255,0.1)',
-                textAlign: 'center'
-            }}>
-                <div style={{
-                    color: '#FFD93D',
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    marginBottom: '8px',
-                    textShadow: '0 2px 8px rgba(255,215,0,0.5)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px'
-                }}>
-                    <span style={{ animation: 'pulse 2s infinite' }}>🎯</span>
-                    NuNu's Epic Adventure to Heaven
-                    <span style={{ animation: 'pulse 2s infinite 1s' }}>⚡</span>
-                </div>
-                <div style={{
-                    color: 'rgba(255, 255, 255, 0.8)',
-                    fontSize: '12px',
-                    lineHeight: '1.4'
-                }}>
-                    Every donation brings us closer to the magical door!
-                </div>
-            </div>
-
-            {/* Steps Container */}
-            <div style={{ padding: '20px' }}>
-                {/* Step 1 - Money to Stairs */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '16px',
-                    marginBottom: '20px',
-                    padding: '16px',
-                    background: 'rgba(255, 217, 61, 0.08)',
-                    borderRadius: '12px',
-                    border: '1px solid rgba(255, 217, 61, 0.2)',
-                    transition: 'all 0.3s ease',
-                    animation: 'slideInLeft 0.6s ease 0.1s both'
-                }} 
-                onMouseOver={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 217, 61, 0.15)';
-                    e.currentTarget.style.transform = 'translateX(8px)';
-                }}
-                onMouseOut={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 217, 61, 0.08)';
-                    e.currentTarget.style.transform = 'translateX(0)';
-                }}
-                >
-                    <div style={{
-                        background: 'linear-gradient(135deg, #FFD93D, #FF6B6B)',
-                        borderRadius: '10px',
-                        padding: '10px',
-                        fontSize: '16px',
-                        minWidth: '40px',
-                        height: '40px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        animation: 'bounce 3s infinite'
-                    }}>
-                        💰
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <div style={{
-                            color: '#FFD93D',
-                            fontSize: '14px',
-                            fontWeight: 'bold',
-                            marginBottom: '6px'
-                        }}>
-                            Magic Conversion
-                        </div>
-                        <div style={{
-                            color: 'rgba(255, 255, 255, 0.9)',
-                            fontSize: '13px',
-                            lineHeight: '1.5'
-                        }}>
-                            Every <strong style={{color: '#FFD93D'}}>$1</strong> magically transforms into <strong style={{color: '#6bcf7f'}}>1 stair</strong> for NuNu to climb!
-                        </div>
-                    </div>
-                </div>
-
-                {/* Step 2 - Charity Impact */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '16px',
-                    marginBottom: '20px',
-                    padding: '16px',
-                    background: 'rgba(107, 207, 127, 0.08)',
-                    borderRadius: '12px',
-                    border: '1px solid rgba(107, 207, 127, 0.2)',
-                    transition: 'all 0.3s ease',
-                    animation: 'slideInLeft 0.6s ease 0.2s both'
-                }}
-                onMouseOver={(e) => {
-                    e.currentTarget.style.background = 'rgba(107, 207, 127, 0.15)';
-                    e.currentTarget.style.transform = 'translateX(8px)';
-                }}
-                onMouseOut={(e) => {
-                    e.currentTarget.style.background = 'rgba(107, 207, 127, 0.08)';
-                    e.currentTarget.style.transform = 'translateX(0)';
-                }}
-                >
-                    <div style={{
-                        background: 'linear-gradient(135deg, #6bcf7f, #8a7fff)',
-                        borderRadius: '10px',
-                        padding: '10px',
-                        fontSize: '16px',
-                        minWidth: '40px',
-                        height: '40px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        animation: 'bounce 3s infinite 0.3s'
-                    }}>
-                        🌍
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <div style={{
-                            color: '#6bcf7f',
-                            fontSize: '14px',
-                            fontWeight: 'bold',
-                            marginBottom: '6px'
-                        }}>
-                            Heartfelt Impact
-                        </div>
-                        <div style={{
-                            color: 'rgba(255, 255, 255, 0.9)',
-                            fontSize: '13px',
-                            lineHeight: '1.5'
-                        }}>
-                            <strong style={{color: '#6bcf7f'}}>50%</strong> of all donations directly support Humans, Animals, and Trees in need.
-                        </div>
-                    </div>
-                </div>
-
-                {/* Step 3 - Future Support */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '16px',
-                    marginBottom: '20px',
-                    padding: '16px',
-                    background: 'rgba(138, 127, 255, 0.08)',
-                    borderRadius: '12px',
-                    border: '1px solid rgba(138, 127, 255, 0.2)',
-                    transition: 'all 0.3s ease',
-                    animation: 'slideInLeft 0.6s ease 0.3s both'
-                }}
-                onMouseOver={(e) => {
-                    e.currentTarget.style.background = 'rgba(138, 127, 255, 0.15)';
-                    e.currentTarget.style.transform = 'translateX(8px)';
-                }}
-                onMouseOut={(e) => {
-                    e.currentTarget.style.background = 'rgba(138, 127, 255, 0.08)';
-                    e.currentTarget.style.transform = 'translateX(0)';
-                }}
-                >
-                    <div style={{
-                        background: 'linear-gradient(135deg, #8a7fff, #FF6B6B)',
-                        borderRadius: '10px',
-                        padding: '10px',
-                        fontSize: '16px',
-                        minWidth: '40px',
-                        height: '40px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        animation: 'bounce 3s infinite 0.6s'
-                    }}>
-                        🔄
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <div style={{
-                            color: '#8a7fff',
-                            fontSize: '14px',
-                            fontWeight: 'bold',
-                            marginBottom: '6px'
-                        }}>
-                            Pay It Forward
-                        </div>
-                        <div style={{
-                            color: 'rgba(255, 255, 255, 0.9)',
-                            fontSize: '13px',
-                            lineHeight: '1.5'
-                        }}>
-                            When NuNu reaches heaven, <strong style={{color: '#8a7fff'}}>YOU</strong> could be next! The site will help donors raise funds for their chosen causes.
-                        </div>
-                    </div>
-                </div>
-
-                {/* Step 4 - Mindful Giving */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '16px',
-                    padding: '16px',
-                    background: 'rgba(255, 107, 107, 0.08)',
-                    borderRadius: '12px',
-                    border: '1px solid rgba(255, 107, 107, 0.2)',
-                    transition: 'all 0.3s ease',
-                    animation: 'slideInLeft 0.6s ease 0.4s both'
-                }}
-                onMouseOver={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 107, 107, 0.15)';
-                    e.currentTarget.style.transform = 'translateX(8px)';
-                }}
-                onMouseOut={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 107, 107, 0.08)';
-                    e.currentTarget.style.transform = 'translateX(0)';
-                }}
-                >
-                    <div style={{
-                        background: 'linear-gradient(135deg, #FF6B6B, #FFD93D)',
-                        borderRadius: '10px',
-                        padding: '10px',
-                        fontSize: '16px',
-                        minWidth: '40px',
-                        height: '40px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        animation: 'bounce 3s infinite 0.9s'
-                    }}>
-                        💖
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <div style={{
-                            color: '#FF6B6B',
-                            fontSize: '14px',
-                            fontWeight: 'bold',
-                            marginBottom: '6px'
-                        }}>
-                            Give with Joy
-                        </div>
-                        <div style={{
-                            color: 'rgba(255, 255, 255, 0.9)',
-                            fontSize: '13px',
-                            lineHeight: '1.5'
-                        }}>
-                            Donate only what feels light and joyful. Let love flow through you effortlessly.
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Magical Call to Action */}
-            <div style={{
-                padding: '20px',
-                background: 'linear-gradient(135deg, rgba(255,215,0,0.15), rgba(138,127,255,0.15))',
-                borderTop: '1px solid rgba(255,255,255,0.1)',
-                textAlign: 'center',
-                animation: 'pulse-glow 4s ease-in-out infinite'
-            }}>
-                <div style={{
-                    color: '#FFD93D',
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    marginBottom: '8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px'
-                }}>
-                    <span style={{ animation: 'spin 3s linear infinite' }}>🚀</span>
-                    Join the Magical Journey!
-                    <span style={{ animation: 'spin 3s linear infinite reverse' }}>🌈</span>
-                </div>
-                <div style={{
-                    color: 'rgba(255, 255, 255, 0.8)',
-                    fontSize: '12px',
-                    fontStyle: 'italic'
-                }}>
-                    Every step brings magic to the world
-                </div>
-            </div>
-        </div>
-    )}
-</div>
-
 
                 </div>
 
@@ -1143,43 +465,35 @@ export default function RiveAnimation() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        // Stronger background glow
                         background: `radial-gradient(ellipse at center, 
       rgba(255,215,0,${backgroundGlowConfig.intensity}) 0%, 
       rgba(255,215,0,${backgroundGlowConfig.intensity * 0.5}) 50%, 
       transparent 80%)`,
                         borderRadius: `${backgroundGlowConfig.borderRadius}px`,
-                        padding: '0px' // More padding for glow space
+                        padding: '0px'
                     }}>
 
                         {/* Main Door Image - No Border, Just Glow */}
                         <img
                             src={`${import.meta.env.BASE_URL}assets/door-stretching-into-fantasy-world.jpg`}
-                            alt="Fantasy World Door"
+                            alt={UIStrings.DOOR.ALT_TEXT}
                             onLoad={() => {
-                                console.log('✅ Door image loaded');
                                 setImageLoaded(true);
                             }}
-                            onError={() => console.error('❌ Failed to load door image')}
+                            onError={() => { }}
                             style={{
                                 width: '100%',
                                 height: '100%',
                                 objectFit: 'cover',
                                 objectPosition: 'center',
-                                // Configurable transform
                                 transform: getTransform(tiltConfig),
-                                // No border, just image with rounded corners
                                 borderRadius: `${borderConfig.radius}px`,
-                                border: 'none', // Explicitly no border
-                                // Enhanced glow-only effect
+                                border: 'none',
                                 boxShadow: getGlowShadow(glowConfig),
-                                // Configurable filters
                                 filter: getFilters(),
-                                // Smooth transitions
                                 transition: 'all 0.5s ease'
                             }}
                             onMouseEnter={(e) => {
-                                // Enhanced hover effect - stronger glow
                                 const hoverTransform = getTransform({
                                     ...tiltConfig,
                                     rotateY: hoverConfig.rotateY,
@@ -1191,7 +505,6 @@ export default function RiveAnimation() {
                                 e.target.style.boxShadow = getGlowShadow(glowConfig, hoverConfig.glowBoost);
                             }}
                             onMouseLeave={(e) => {
-                                // Return to original state
                                 e.target.style.transform = getTransform(tiltConfig);
                                 e.target.style.boxShadow = getGlowShadow(glowConfig);
                             }}
@@ -1200,7 +513,7 @@ export default function RiveAnimation() {
                         {/* Enhanced Glow Overlay */}
                         <div style={{
                             position: 'absolute',
-                            top: '-20px', // Extend beyond image for glow
+                            top: '-20px',
                             left: '-20px',
                             right: '-20px',
                             bottom: '-20px',
@@ -1260,7 +573,7 @@ export default function RiveAnimation() {
                             fontSize: '16px',
                             fontWeight: 'bold'
                         }}>
-                            🏰 Loading Heaven's Door...
+                            {UIStrings.DOOR.LOADING_TEXT}
                         </div>
                     )}
 
@@ -1283,13 +596,13 @@ export default function RiveAnimation() {
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
                         <span>🎨</span>
-                        <span style={{ fontWeight: 'bold', color: '#FFD93D' }}>Animation:</span>
+                        <span style={{ fontWeight: 'bold', color: '#FFD93D' }}>{UIStrings.ATTRIBUTION.ANIMATION}</span>
                     </div>
                     <div style={{ lineHeight: '1.3' }}>
-                        "stairs" by <strong>Marcelo Bazani</strong>
+                        "{UIStrings.ATTRIBUTION.BY}" <strong>{UIStrings.ATTRIBUTION.CREATOR}</strong>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
                             <a
-                                href="https://creativecommons.org/licenses/by/4.0/"
+                                href={UIStrings.ATTRIBUTION.LICENSE_URL}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 style={{
@@ -1300,11 +613,11 @@ export default function RiveAnimation() {
                                     gap: '2px'
                                 }}
                             >
-                                <span>CC BY 4.0</span>
+                                <span>{UIStrings.ATTRIBUTION.LICENSE}</span>
                             </a>
                             <span style={{ color: 'rgba(255, 255, 255, 0.4)' }}>•</span>
                             <a
-                                href="https://rive.app/community/8866-17054-stairs-marcelo-bazani"
+                                href={UIStrings.ATTRIBUTION.RIVE_URL}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 style={{
@@ -1312,7 +625,7 @@ export default function RiveAnimation() {
                                     textDecoration: 'none'
                                 }}
                             >
-                                View on Rive
+                                {UIStrings.ATTRIBUTION.VIEW_ON_RIVE}
                             </a>
                         </div>
                     </div>
@@ -1332,111 +645,28 @@ export default function RiveAnimation() {
                 position: 'relative',
                 zIndex: 1000
             }}>
-                {/* Sidebar Header with User Info */}
                 <div style={{
-                    padding: '15px 20px',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    minHeight: '60px',
-                    background: 'rgba(255, 255, 255, 0.05)'
-                }}>
-                    <div style={{
-                        color: 'white',
-                        fontSize: '18px',
-                        fontWeight: 'bold',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                    }}>
-                        💝 Donate
-                    </div>
+    padding: '15px 20px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    display: 'flex',
+    justifyContent: 'center', // Center the title
+    alignItems: 'center',
+    minHeight: '60px',
+    background: 'rgba(255, 255, 255, 0.05)'
+}}>
+    <div style={{
+        color: 'white',
+        fontSize: '18px',
+        fontWeight: 'bold',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+    }}>
+        💝 Donate
+    </div>
+</div>
 
-                    {/* User Info in Header */}
-                    {user ? (
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px'
-                        }}>
-                            <div style={{
-                                background: 'rgba(107, 207, 127, 0.2)',
-                                padding: '6px 12px',
-                                borderRadius: '15px',
-                                border: '1px solid rgba(107, 207, 127, 0.3)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px'
-                            }}>
-                                <div style={{
-                                    width: '6px',
-                                    height: '6px',
-                                    background: '#6bcf7f',
-                                    borderRadius: '50%',
-                                    animation: 'pulse 2s infinite'
-                                }} />
-                                <div style={{
-                                    color: '#6bcf7f',
-                                    fontSize: '11px',
-                                    fontWeight: '600'
-                                }}>
-                                    {user.email.split('@')[0]}
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={handleSignOut}
-                                style={{
-                                    background: 'rgba(255, 107, 107, 0.2)',
-                                    color: '#ff6b6b',
-                                    border: '1px solid rgba(255, 107, 107, 0.3)',
-                                    borderRadius: '6px',
-                                    padding: '6px 8px',
-                                    fontSize: '10px',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.3s ease'
-                                }}
-                            >
-                                Sign Out
-                            </button>
-                        </div>
-                    ) : (
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px'
-                        }}>
-                            <button
-                                onClick={() => openAuthModal('login')}
-                                style={{
-                                    background: 'linear-gradient(135deg, #8a7fff, #6366f1)',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    padding: '8px 16px',
-                                    fontSize: '11px',
-                                    fontWeight: '600',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.3s ease'
-                                }}
-                                onMouseOver={(e) => {
-                                    e.target.style.transform = 'translateY(-1px)';
-                                    e.target.style.boxShadow = '0 4px 12px rgba(138, 127, 255, 0.3)';
-                                }}
-                                onMouseOut={(e) => {
-                                    e.target.style.transform = 'translateY(0)';
-                                    e.target.style.boxShadow = 'none';
-                                }}
-                            >
-                                🔐 Sign In
-                            </button>
-                        </div>
-                    )}
-                </div>
-
-                {/* Sidebar Content */}
-
+                {/* Sidebar Content - ALWAYS SHOW DONATION CONTENT (no tab logic) */}
                 {isSidebarExpanded && (
                     <div style={{
                         flex: 1,
@@ -1458,7 +688,7 @@ export default function RiveAnimation() {
                                 ${formatCurrency(totalMoney)}
                             </div>
                             <div style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '11px' }}>
-                                Raised of ${formatCurrency(currentGoal)} goal
+                                {UIStrings.GOAL.RAISED_OF_GOAL(formatCurrency(totalMoney), formatCurrency(currentGoal))}
                             </div>
                             <div style={{
                                 width: '100%',
@@ -1477,7 +707,7 @@ export default function RiveAnimation() {
                                 }} />
                             </div>
                             <div style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '10px', marginTop: '5px' }}>
-                                {formatPercentage(totalMoney, currentGoal)}% funded
+                                {UIStrings.GOAL.PERCENT_FUNDED(formatPercentage(totalMoney, currentGoal))}
                             </div>
                         </div>
 
@@ -1489,7 +719,7 @@ export default function RiveAnimation() {
                                 marginBottom: '15px',
                                 textAlign: 'center'
                             }}>
-                                Choose donation amount:
+                                {UIStrings.DONATION.CHOOSE_AMOUNT}
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -1507,7 +737,7 @@ export default function RiveAnimation() {
                                             textAlign: 'center',
                                             marginBottom: '10px'
                                         }}>
-                                            ${amount} = {amount} stair{amount > 1 ? 's' : ''}
+                                            {UIStrings.DONATION.STAIR_CONVERSION(amount)}
                                         </div>
                                         <PayPalDonationButton
                                             amount={amount}
@@ -1549,7 +779,7 @@ export default function RiveAnimation() {
                                                 e.target.style.transform = 'scale(1)';
                                             }}
                                         >
-                                            💫 Custom Amount
+                                            {UIStrings.DONATION.CUSTOM_AMOUNT}
                                         </button>
                                     ) : (
                                         // Show custom amount input WITH PAYPAL BUTTON
@@ -1561,7 +791,7 @@ export default function RiveAnimation() {
                                                 fontWeight: 'bold',
                                                 marginBottom: '5px'
                                             }}>
-                                                Enter Custom Amount
+                                                {UIStrings.DONATION.ENTER_CUSTOM_AMOUNT}
                                             </div>
 
                                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -1625,7 +855,7 @@ export default function RiveAnimation() {
                                                         transition: 'all 0.3s ease'
                                                     }}
                                                 >
-                                                    Cancel
+                                                    {UIStrings.DONATION.CANCEL}
                                                 </button>
                                             </div>
 
@@ -1636,7 +866,7 @@ export default function RiveAnimation() {
                                                     textAlign: 'center',
                                                     marginTop: '5px'
                                                 }}>
-                                                    Minimum donation is $1
+                                                    {UIStrings.DONATION.MINIMUM_DONATION}
                                                 </div>
                                             )}
 
@@ -1647,7 +877,7 @@ export default function RiveAnimation() {
                                                     textAlign: 'center',
                                                     marginTop: '5px'
                                                 }}>
-                                                    Enter an amount to see PayPal options
+                                                    {UIStrings.DONATION.ENTER_AMOUNT_PROMPT}
                                                 </div>
                                             )}
                                         </div>
@@ -1687,8 +917,8 @@ export default function RiveAnimation() {
                                 }}
                             >
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    Recent Donations
-                                    {donationHistory.length > 0 && (  // FIXED: Removed showDonationHistory &&
+                                    {UIStrings.HISTORY.RECENT_DONATIONS}
+                                    {donationHistory.length > 0 && (
                                         <span style={{
                                             background: 'rgba(138, 127, 255, 0.3)',
                                             color: '#8a7fff',
@@ -1697,7 +927,7 @@ export default function RiveAnimation() {
                                             borderRadius: '10px',
                                             minWidth: '20px'
                                         }}>
-                                            {donationHistory.length}
+                                            {UIStrings.HISTORY.DONATION_COUNT(donationHistory.length)}
                                         </span>
                                     )}
                                 </span>
@@ -1734,7 +964,7 @@ export default function RiveAnimation() {
                                                 padding: '20px',
                                                 fontStyle: 'italic'
                                             }}>
-                                                No donations yet. Be the first to help NuNu climb! 🎉
+                                                {UIStrings.HISTORY.NO_DONATIONS_YET}
                                             </div>
                                         ) : (
                                             <div style={{
@@ -1791,12 +1021,6 @@ export default function RiveAnimation() {
                     </div>
                 )}
             </div>
-
-            {/* Auth Modal */}
-            <AuthModal
-                isOpen={showAuthModal && !user}
-                onClose={closeAuthModal}
-            />
 
             {/* CSS Animation for glowing effect */}
             <style>

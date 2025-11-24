@@ -1,24 +1,24 @@
-// src/App.jsx
+// src/App.jsx - UPDATED
 import React from 'react';
 import { PayPalScriptProvider } from '@paypal/react-paypal-js';
-import RiveAnimation from './components/RiveAnimation';
+import MainLayout from './components/MainLayout';
 import './App.css';
 
+// Move PayPal provider options outside component to avoid re-renders
+const paypalOptions = {
+    "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID_SANDBOX,
+    currency: "USD",
+    intent: "capture",
+};
+
 function App() {
-  return (
-    <PayPalScriptProvider 
-      options={{
-        "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID_SANDBOX,
-        currency: "USD",
-        intent: "capture",
-      }}
-    >
-      <div className="app">
-        {/* Always show RiveAnimation - it will handle the auth modal internally */}
-        <RiveAnimation />
-      </div>
-    </PayPalScriptProvider>
-  );
+    return (
+        <PayPalScriptProvider options={paypalOptions}>
+            <div className="app">
+                <MainLayout />
+            </div>
+        </PayPalScriptProvider>
+    );
 }
 
 export default App;
