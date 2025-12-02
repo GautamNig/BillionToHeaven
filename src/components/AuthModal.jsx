@@ -6,7 +6,7 @@ import './AuthModal.css';
 export default function AuthModal({ isOpen, onClose }) {
   if (!isOpen) return null;
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin= async () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',

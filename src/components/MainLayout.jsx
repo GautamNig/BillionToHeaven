@@ -2,13 +2,13 @@
 import React, { useState } from 'react';
 import RiveAnimation from './RiveAnimation';
 import HowItWorks from './HowItWorks';
-import AuthModal from './AuthModal';
 import { UIStrings } from '../config/uiStrings';
 import useAuth from '../hooks/useAuth';
+import { AuthService } from '../lib/auth';
 
 const MainLayout = () => {
     const [activeTab, setActiveTab] = useState('animation');
-    const { user, signOut, showAuthModal, openAuthModal, closeAuthModal } = useAuth();
+    const { user, signOut } = useAuth();
 
     const handleSignOut = async () => {
         try {
@@ -160,7 +160,7 @@ const MainLayout = () => {
                             gap: '10px'
                         }}>
                             <button
-                                onClick={() => openAuthModal('login')}
+                                onClick={AuthService.signInWithGoogle}
                                 style={{
                                     background: 'linear-gradient(135deg, #8a7fff, #6366f1)',
                                     color: 'white',
@@ -219,12 +219,6 @@ const MainLayout = () => {
                     <HowItWorks />
                 </div>
             </div>
-
-            {/* Auth Modal */}
-            <AuthModal
-                isOpen={showAuthModal && !user}
-                onClose={closeAuthModal}
-            />
         </div>
     );
 };

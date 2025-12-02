@@ -7,7 +7,6 @@ import useRiveAnimation from '../hooks/useRiveAnimation';
 import useThankYouMessages from '../hooks/useThankYouMessages';
 import DonationBarGraph from './DonationBarGraph';
 import DonationThankYouTooltip from './DonationThankYouTooltip';
-import AuthModal from './AuthModal';
 import { UIStrings } from '../config/uiStrings';
 import PayPalDonationButton from './PayPalDonationButton';
 import DonationHistoryItem from './DonationHistoryItem';
