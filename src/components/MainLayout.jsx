@@ -1,7 +1,6 @@
 // src/components/MainLayout.jsx
 import React, { useState } from 'react';
 import RiveAnimation from './RiveAnimation';
-import HowItWorks from './HowItWorks';
 import { UIStrings } from '../config/uiStrings';
 import useAuth from '../hooks/useAuth';
 import { AuthService } from '../lib/auth';
@@ -85,7 +84,7 @@ const MainLayout = () => {
                         >
                             🎮 Watch NuNu Climb
                         </button>
-                        <button
+                        {/* <button
                             onClick={() => setActiveTab('how-it-works')}
                             style={{
                                 background: activeTab === 'how-it-works' 
@@ -102,7 +101,7 @@ const MainLayout = () => {
                             }}
                         >
                             📖 How It Works
-                        </button>
+                        </button> */}
                     </div>
 
                     {/* Auth Buttons in Main Header */}
@@ -205,18 +204,6 @@ const MainLayout = () => {
                     display: activeTab === 'animation' ? 'block' : 'none'
                 }}>
                     <RiveAnimation />
-                </div>
-
-                {/* HowItWorks - Always mounted but hidden when not active */}
-                <div style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    display: activeTab === 'how-it-works' ? 'block' : 'none'
-                }}>
-                    <HowItWorks />
                 </div>
             </div>
         </div>

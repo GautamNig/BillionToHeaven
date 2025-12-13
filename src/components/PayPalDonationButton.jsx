@@ -31,7 +31,7 @@ function PayPalDonationButton({ amount, onDonationSuccess, disabled }) {
     };
 
     const onError = (err) => {
-        // Error handling without console.log
+        console.error("PayPal createOrder ERROR:", err);
     };
 
     if (isRejected) {
