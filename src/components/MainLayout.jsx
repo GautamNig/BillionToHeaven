@@ -4,6 +4,8 @@ import RiveAnimation from './RiveAnimation';
 import { UIStrings } from '../config/uiStrings';
 import useAuth from '../hooks/useAuth';
 import { AuthService } from '../lib/auth';
+import NotificationBell from './NotificationBell';
+import BottleInventory from './BottleInventory';
 
 const MainLayout = () => {
     const [activeTab, setActiveTab] = useState('animation');
@@ -111,6 +113,8 @@ const MainLayout = () => {
                             alignItems: 'center',
                             gap: '12px'
                         }}>
+                            <NotificationBell />
+                            <BottleInventory />
                             <div style={{
                                 background: 'rgba(107, 207, 127, 0.2)',
                                 padding: '8px 16px',

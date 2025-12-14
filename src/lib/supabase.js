@@ -1,3 +1,4 @@
+// src/lib/supabase.js
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -7,7 +8,21 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please check your .env file');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// SINGLE client instance with proper auth config
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storage: localStorage,
+    storageKey: 'sb-auth-token'
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
+  }
+});
 
-// Service role client for admin operations (use cautiously)
-export const supabaseService = createClient(supabaseUrl, supabaseAnonKey);
+// If you need admin operations later, create it conditionally
+// But for now, just use one client

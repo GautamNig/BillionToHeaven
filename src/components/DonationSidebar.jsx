@@ -155,16 +155,65 @@ const DonationSidebar = ({
                     </div>
                 </div>
 
-                {/* Donation Options */}
-                <DonationOptions 
-                    isClimbing={isClimbing}
-                    directionInputRef={directionInputRef}
-                    onDonationSuccess={onDonationSuccess}
-                    customAmount={customAmount}
-                    setCustomAmount={setCustomAmount}
-                    showCustomInput={showCustomInput}
-                    setShowCustomInput={setShowCustomInput}
-                />
+{!user ? (
+    <div style={{
+        background: 'rgba(255, 215, 0, 0.1)',
+        padding: '20px',
+        borderRadius: '10px',
+        border: '1px solid rgba(255, 215, 0, 0.3)',
+        textAlign: 'center'
+    }}>
+        <div style={{
+            fontSize: '24px',
+            marginBottom: '10px'
+        }}>
+            🔒
+        </div>
+        <div style={{
+            color: '#FFD93D',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            marginBottom: '10px'
+        }}>
+            Sign in to Donate
+        </div>
+        <div style={{
+            color: 'rgba(255, 255, 255, 0.7)',
+            fontSize: '12px',
+            marginBottom: '15px',
+            lineHeight: '1.4'
+        }}>
+            Create an account to donate, drop message bottles, and find bottles from other donors
+        </div>
+        <button
+            onClick={() => window.location.reload()} // Or trigger auth modal
+            style={{
+                background: 'linear-gradient(135deg, #8a7fff, #6366f1)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '10px 20px',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                width: '100%'
+            }}
+        >
+            Sign In with Google
+        </button>
+    </div>
+) : (
+    // Show donation options only if user is logged in
+    <DonationOptions 
+        isClimbing={isClimbing}
+        directionInputRef={directionInputRef}
+        onDonationSuccess={onDonationSuccess}
+        customAmount={customAmount}
+        setCustomAmount={setCustomAmount}
+        showCustomInput={showCustomInput}
+        setShowCustomInput={setShowCustomInput}
+    />
+)}
 
                 {/* Donation History */}
                 <DonationHistorySection 

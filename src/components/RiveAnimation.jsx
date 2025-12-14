@@ -1,4 +1,4 @@
-// src/components/RiveAnimation.jsx - REFACTORED WITH CUSTOM HOOKS
+// Update src/components/RiveAnimation.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { DonationsService } from '../lib/donationsService';
 import useAuth from '../hooks/useAuth';
@@ -66,30 +66,36 @@ export default function RiveAnimation() {
         showThankYouMessage
     } = useThankYouMessages();
 
-    // Local State
+    // Local State - ADD THESE
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
+    const [foundBottle, setFoundBottle] = useState(null);
+
+    
     const riveContainerRef = useRef();
 
     // Real-time subscription for donations
     useEffect(() => {
         const handleRealTimeDonation = async (payload) => {
-            if (payload.eventType === 'INSERT' && payload.new) {
-                const donation = payload.new;
+    if (payload.eventType === 'INSERT' && payload.new) {
+        const donation = payload.new;
 
-                // Update stats and graph
-                const updatedDonation = await handleRealTimeUpdate(payload);
+        // Update stats and graph
+        const updatedDonation = await handleRealTimeUpdate(payload);
 
-                // Handle animation for other users
-                const isOurOwnDonation = user && donation.user_email === user.email;
-                if (!isOurOwnDonation) {
-                    showThankYouMessage(donation);
-                }
+        // Don't show thank you tooltip for current user when they just donated
+        // (they'll see the bottle modal instead)
+        const isOurOwnDonation = user && donation.user_email === user.email;
+        const shouldShowThankYou = !isOurOwnDonation;
+        
+        if (shouldShowThankYou) {
+            showThankYouMessage(donation);
+        }
 
-                if (!isOurOwnDonation && !isClimbing) {
-                    startClimbingAnimation(donation.amount);
-                }
-            }
-        };
+        if (!isOurOwnDonation && !isClimbing) {
+            startClimbingAnimation(donation.amount);
+        }
+    }
+};
 
         const subscription = DonationsService.subscribeToDonations(handleRealTimeDonation);
 
@@ -110,26 +116,30 @@ export default function RiveAnimation() {
         }
     }, [rive]);
 
-    // Handle successful PayPal donation
+    // Handle successful PayPal donation - UPDATED
     const handleDonationSuccess = async (amount, paypalDetails) => {
-        try {
-            // Save donation to database
-            const donationRecord = await addDonation(amount, paypalDetails);
+    if (!user) {
+        console.error('User not logged in during donation');
+        return;
+    }
+    
+    try {
+        console.log('💰 Donation success:', amount, 'User:', user.id);
+        
+        // Save donation to database
+        const donationRecord = await addDonation(amount, paypalDetails);
+        console.log('📝 Donation saved:', donationRecord.id);
 
-            // Show thank you message for current user immediately
-            showThankYouMessage({
-                ...donationRecord,
-                user_email: user?.email,
-                amount: amount
-            });
+        // Start climbing animation
+        startClimbingAnimation(amount);
+        
+        // Inventory updates automatically via real-time
+        // User sees badge count increase
 
-            // Start climbing animation
-            startClimbingAnimation(amount);
-
-        } catch (error) {
-            // Error handling
-        }
-    };
+    } catch (error) {
+        console.error('❌ Donation error:', error);
+    }
+};
 
     const sidebarWidth = isSidebarExpanded ? '350px' : '60px';
 
