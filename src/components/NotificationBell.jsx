@@ -1,41 +1,41 @@
-// src/components/NotificationBell.jsx
+// src/components/NotificationBell.jsx - UPDATED
 import React, { useState, useEffect } from 'react';
 import { MessageBottleService } from '../lib/messageBottleService';
 import useAuth from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 
-const NotificationBell = () => {
+const NotificationBell = ({ onOpenInbox }) => { // Add onOpenInbox prop
     const { user } = useAuth();
     const [unreadCount, setUnreadCount] = useState(0);
     const [showDropdown, setShowDropdown] = useState(false);
     const [notifications, setNotifications] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
 
-   useEffect(() => {
-    if (user) {
-        loadNotifications();
-        
-        // Simple subscription - just listen for all bottle changes
-        const subscription = supabase
-            .channel('user-bottles-simple')
-            .on('postgres_changes', 
-                { 
-                    event: '*', 
-                    schema: 'public', 
-                    table: 'message_bottles' 
-                },
-                () => {
-                    // Just refresh notifications on any change
-                    loadNotifications();
-                }
-            )
-            .subscribe();
-        
-        return () => {
-            subscription?.unsubscribe();
-        };
-    }
-}, [user]);
+    useEffect(() => {
+        if (user) {
+            loadNotifications();
+            
+            // Simple subscription - just listen for all bottle changes
+            const subscription = supabase
+                .channel('user-bottles-simple')
+                .on('postgres_changes', 
+                    { 
+                        event: '*', 
+                        schema: 'public', 
+                        table: 'message_bottles' 
+                    },
+                    () => {
+                        // Just refresh notifications on any change
+                        loadNotifications();
+                    }
+                )
+                .subscribe();
+            
+            return () => {
+                subscription?.unsubscribe();
+            };
+        }
+    }, [user]);
 
     const loadNotifications = async () => {
         if (!user) return;
@@ -92,8 +92,10 @@ const NotificationBell = () => {
             }
         }
         
-        // Navigate to bottle view (we'll implement this later)
-        console.log('Navigate to bottle:', notification.id);
+        // OPEN THE INBOX INSTEAD OF JUST LOGGING
+        if (onOpenInbox) {
+            onOpenInbox();
+        }
         setShowDropdown(false);
     };
 
@@ -252,7 +254,7 @@ const NotificationBell = () => {
                             <div>
                                 {notifications.map((notification, index) => (
                                     <div
-                                        key={`${notification.id || 'no-id'}-${index}`} // Fallback for missing id
+                                        key={`${notification.id || 'no-id'}-${index}`}
                                         onClick={() => handleNotificationClick(notification)}
                                         style={{
                                             padding: '12px 15px',
@@ -325,7 +327,7 @@ const NotificationBell = () => {
                         )}
                     </div>
 
-                    {/* Footer */}
+                    {/* Footer - Now opens the inbox */}
                     <div style={{
                         padding: '12px 15px',
                         borderTop: '1px solid rgba(255, 255, 255, 0.1)',
@@ -333,30 +335,33 @@ const NotificationBell = () => {
                     }}>
                         <button
                             onClick={() => {
-                                // Navigate to inbox (we'll implement this later)
-                                console.log('Go to inbox');
+                                if (onOpenInbox) {
+                                    onOpenInbox();
+                                }
                                 setShowDropdown(false);
                             }}
                             style={{
-                                background: 'transparent',
-                                border: '1px solid rgba(255, 255, 255, 0.2)',
-                                color: 'rgba(255, 255, 255, 0.7)',
-                                padding: '6px 12px',
+                                background: 'rgba(74, 144, 226, 0.2)',
+                                border: '1px solid rgba(74, 144, 226, 0.3)',
+                                color: '#4a90e2',
+                                padding: '8px 16px',
                                 borderRadius: '6px',
-                                fontSize: '11px',
+                                fontSize: '12px',
+                                fontWeight: '600',
                                 cursor: 'pointer',
-                                transition: 'all 0.3s ease'
+                                transition: 'all 0.3s ease',
+                                width: '100%'
                             }}
                             onMouseOver={(e) => {
-                                e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                                e.target.style.background = 'rgba(74, 144, 226, 0.3)';
                                 e.target.style.color = 'white';
                             }}
                             onMouseOut={(e) => {
-                                e.target.style.background = 'transparent';
-                                e.target.style.color = 'rgba(255, 255, 255, 0.7)';
+                                e.target.style.background = 'rgba(74, 144, 226, 0.2)';
+                                e.target.style.color = '#4a90e2';
                             }}
                         >
-                            View All Messages
+                            📬 Open Bottle Inbox
                         </button>
                     </div>
                 </div>

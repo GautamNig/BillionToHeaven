@@ -1,4 +1,4 @@
-// src/components/MainLayout.jsx
+// src/components/MainLayout.jsx - UPDATED
 import React, { useState } from 'react';
 import RiveAnimation from './RiveAnimation';
 import { UIStrings } from '../config/uiStrings';
@@ -6,9 +6,12 @@ import useAuth from '../hooks/useAuth';
 import { AuthService } from '../lib/auth';
 import NotificationBell from './NotificationBell';
 import BottleInventory from './BottleInventory';
+import BottleInboxTab from './BottleInboxTab'; // Add this import
+import BottleDe
 
 const MainLayout = () => {
     const [activeTab, setActiveTab] = useState('animation');
+    const [showBottleInbox, setShowBottleInbox] = useState(false); // Add state for inbox
     const { user, signOut } = useAuth();
 
     const handleSignOut = async () => {
@@ -17,6 +20,11 @@ const MainLayout = () => {
         } catch (error) {
             console.error('Sign out error:', error);
         }
+    };
+
+    // Function to open bottle inbox from notifications
+    const handleOpenBottleInbox = () => {
+        setShowBottleInbox(true);
     };
 
     return (
@@ -86,24 +94,6 @@ const MainLayout = () => {
                         >
                             🎮 Watch NuNu Climb
                         </button>
-                        {/* <button
-                            onClick={() => setActiveTab('how-it-works')}
-                            style={{
-                                background: activeTab === 'how-it-works' 
-                                    ? 'linear-gradient(135deg, #8a7fff, #6366f1)'
-                                    : 'rgba(255, 255, 255, 0.1)',
-                                color: activeTab === 'how-it-works' ? 'white' : 'rgba(255, 255, 255, 0.7)',
-                                border: 'none',
-                                borderRadius: '10px',
-                                padding: '10px 20px',
-                                fontSize: '14px',
-                                fontWeight: 'bold',
-                                cursor: 'pointer',
-                                transition: 'all 0.3s ease'
-                            }}
-                        >
-                            📖 How It Works
-                        </button> */}
                     </div>
 
                     {/* Auth Buttons in Main Header */}
@@ -113,7 +103,10 @@ const MainLayout = () => {
                             alignItems: 'center',
                             gap: '12px'
                         }}>
-                            <NotificationBell />
+                            {/* Update NotificationBell to open inbox */}
+                            <NotificationBell 
+                                onOpenInbox={handleOpenBottleInbox} 
+                            />
                             <BottleInventory />
                             <div style={{
                                 background: 'rgba(107, 207, 127, 0.2)',
@@ -210,6 +203,12 @@ const MainLayout = () => {
                     <RiveAnimation />
                 </div>
             </div>
+
+            {/* Bottle Inbox Tab */}
+            <BottleInboxTab
+                isOpen={showBottleInbox}
+                onClose={() => setShowBottleInbox(false)}
+            />
         </div>
     );
 };
