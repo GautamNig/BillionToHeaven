@@ -7,7 +7,6 @@ import { AuthService } from '../lib/auth';
 import NotificationBell from './NotificationBell';
 import BottleInventory from './BottleInventory';
 import BottleInboxTab from './BottleInboxTab'; // Add this import
-import BottleDe
 
 const MainLayout = () => {
     const [activeTab, setActiveTab] = useState('animation');
