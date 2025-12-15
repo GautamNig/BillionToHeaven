@@ -1,5 +1,5 @@
-// src/components/BottleDetailsModal.jsx
-import React, { useState } from 'react';
+// src/components/BottleDetailsModal.jsx - COMPLETE UPDATED VERSION
+import React, { useState, useEffect } from 'react';
 import { MessageBottleService } from '../lib/messageBottleService';
 import { supabase } from '../lib/supabase';
 
@@ -11,6 +11,40 @@ const BottleDetailsModal = ({ bottle, onClose, user }) => {
     const [showReplies, setShowReplies] = useState(false);
     const [replies, setReplies] = useState([]);
     const [loadingReplies, setLoadingReplies] = useState(false);
+    const [hasReplied, setHasReplied] = useState(false);
+    const [replyError, setReplyError] = useState('');
+    const [userDonationIds, setUserDonationIds] = useState([]);
+
+    // Load user's donation IDs on mount
+    useEffect(() => {
+        const loadUserDonations = async () => {
+            if (!user) return;
+            
+            try {
+                const { data: donations } = await supabase
+                    .from('donations')
+                    .select('id')
+                    .eq('user_id', user.id);
+                
+                if (donations) {
+                    const ids = donations.map(d => d.id);
+                    setUserDonationIds(ids);
+                    
+                    // Check if user has already replied to this bottle
+                    if (replies.length > 0) {
+                        const userHasReplied = replies.some(reply => 
+                            ids.includes(reply.sender_donation_id)
+                        );
+                        setHasReplied(userHasReplied);
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading user donations:', error);
+            }
+        };
+        
+        loadUserDonations();
+    }, [user]);
 
     const getDonorInfo = () => {
         if (bottle.is_anonymous) {
@@ -50,10 +84,18 @@ const BottleDetailsModal = ({ bottle, onClose, user }) => {
     const loadReplies = async () => {
         setLoadingReplies(true);
         try {
-            // You'll need to add a method to MessageBottleService for this
             const bottleWithReplies = await MessageBottleService.getBottleWithReplies(bottle.id);
             setReplies(bottleWithReplies.replies || []);
             setShowReplies(true);
+            
+            // Check if current user has already replied
+            if (userDonationIds.length > 0 && bottleWithReplies.replies) {
+                const userHasReplied = bottleWithReplies.replies.some(reply => 
+                    userDonationIds.includes(reply.sender_donation_id)
+                );
+                setHasReplied(userHasReplied);
+            }
+            
         } catch (error) {
             console.error('Error loading replies:', error);
         } finally {
@@ -62,9 +104,11 @@ const BottleDetailsModal = ({ bottle, onClose, user }) => {
     };
 
     const handleSendReply = async () => {
-        if (!replyMessage.trim() || !bottle.allow_reply) return;
+        if (!replyMessage.trim() || !bottle.allow_reply || hasReplied) return;
         
         setIsSubmitting(true);
+        setReplyError('');
+        
         try {
             // Get user's most recent donation for this reply
             const { data: userDonations, error } = await supabase
@@ -86,6 +130,7 @@ const BottleDetailsModal = ({ bottle, onClose, user }) => {
             );
             
             setReplySent(true);
+            setHasReplied(true);
             setReplyMessage('');
             
             // Refresh replies
@@ -93,7 +138,7 @@ const BottleDetailsModal = ({ bottle, onClose, user }) => {
             
         } catch (error) {
             console.error('Error sending reply:', error);
-            alert('Failed to send reply. Please try again.');
+            setReplyError(error.message || 'Failed to send reply. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
@@ -150,6 +195,14 @@ const BottleDetailsModal = ({ bottle, onClose, user }) => {
                         fontSize: '16px',
                         transition: 'all 0.3s ease',
                         zIndex: 10
+                    }}
+                    onMouseOver={(e) => {
+                        e.target.style.background = 'rgba(255, 255, 255, 0.2)';
+                        e.target.style.color = 'white';
+                    }}
+                    onMouseOut={(e) => {
+                        e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                        e.target.style.color = 'rgba(255, 255, 255, 0.7)';
                     }}
                 >
                     ×
@@ -296,91 +349,148 @@ const BottleDetailsModal = ({ bottle, onClose, user }) => {
                                     <span>💬</span> Send a Reply
                                 </div>
 
+                                {/* Show error message if any */}
+                                {replyError && (
+                                    <div style={{
+                                        background: 'rgba(255, 107, 107, 0.1)',
+                                        border: '1px solid rgba(255, 107, 107, 0.3)',
+                                        borderRadius: '8px',
+                                        padding: '10px',
+                                        marginBottom: '15px',
+                                        color: '#ff6b6b',
+                                        fontSize: '12px'
+                                    }}>
+                                        {replyError}
+                                    </div>
+                                )}
+
                                 {/* Reply Form */}
                                 <div style={{
                                     background: 'rgba(0, 0, 0, 0.3)',
                                     borderRadius: '12px',
                                     padding: '20px',
-                                    marginBottom: '20px'
+                                    marginBottom: '20px',
+                                    opacity: hasReplied ? 0.6 : 1
                                 }}>
-                                    <textarea
-                                        value={replyMessage}
-                                        onChange={(e) => setReplyMessage(e.target.value)}
-                                        placeholder="Write your reply to the bottle sender..."
-                                        style={{
-                                            width: '100%',
-                                            minHeight: '80px',
-                                            background: 'rgba(255, 255, 255, 0.1)',
-                                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                                            borderRadius: '8px',
-                                            padding: '12px',
-                                            color: 'white',
-                                            fontSize: '14px',
-                                            resize: 'vertical',
-                                            outline: 'none',
-                                            fontFamily: 'inherit',
-                                            marginBottom: '15px'
-                                        }}
-                                    />
-                                    
-                                    <div style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        marginBottom: '15px'
-                                    }}>
-                                        <label style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px',
-                                            cursor: 'pointer'
+                                    {hasReplied ? (
+                                        <div style={{
+                                            textAlign: 'center',
+                                            padding: '20px',
+                                            color: 'rgba(255, 255, 255, 0.7)'
                                         }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={isAnonymousReply}
-                                                onChange={(e) => setIsAnonymousReply(e.target.checked)}
+                                            <div style={{ fontSize: '24px', marginBottom: '10px' }}>✅</div>
+                                            <div style={{ marginBottom: '5px', fontWeight: 'bold' }}>
+                                                You've already replied to this bottle
+                                            </div>
+                                            <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)' }}>
+                                                Only one reply per person is allowed
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <textarea
+                                                value={replyMessage}
+                                                onChange={(e) => {
+                                                    if (e.target.value.length <= 280) {
+                                                        setReplyMessage(e.target.value);
+                                                    }
+                                                }}
+                                                placeholder="Write your reply to the bottle sender..."
                                                 style={{
-                                                    width: '16px',
-                                                    height: '16px',
-                                                    cursor: 'pointer'
+                                                    width: '100%',
+                                                    minHeight: '80px',
+                                                    background: 'rgba(255, 255, 255, 0.1)',
+                                                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                                                    borderRadius: '8px',
+                                                    padding: '12px',
+                                                    color: 'white',
+                                                    fontSize: '14px',
+                                                    resize: 'vertical',
+                                                    outline: 'none',
+                                                    fontFamily: 'inherit',
+                                                    marginBottom: '15px',
+                                                    transition: 'all 0.3s ease'
+                                                }}
+                                                onFocus={(e) => {
+                                                    e.target.style.background = 'rgba(255, 255, 255, 0.15)';
+                                                    e.target.style.borderColor = '#4a90e2';
+                                                }}
+                                                onBlur={(e) => {
+                                                    e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                                                    e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
                                                 }}
                                             />
-                                            <span style={{
-                                                color: 'rgba(255, 255, 255, 0.8)',
-                                                fontSize: '13px'
+                                            
+                                            <div style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                marginBottom: '15px'
                                             }}>
-                                                Send anonymously 🎭
-                                            </span>
-                                        </label>
-                                        
-                                        <div style={{
-                                            color: 'rgba(255, 255, 255, 0.6)',
-                                            fontSize: '12px'
-                                        }}>
-                                            {replyMessage.length}/280 characters
-                                        </div>
-                                    </div>
-                                    
-                                    <button
-                                        onClick={handleSendReply}
-                                        disabled={!replyMessage.trim() || isSubmitting}
-                                        style={{
-                                            width: '100%',
-                                            background: replyMessage.trim() && !isSubmitting
-                                                ? 'linear-gradient(135deg, #4a90e2, #8a7fff)'
-                                                : 'rgba(255, 255, 255, 0.1)',
-                                            color: replyMessage.trim() && !isSubmitting ? 'white' : 'rgba(255, 255, 255, 0.3)',
-                                            border: 'none',
-                                            borderRadius: '10px',
-                                            padding: '12px',
-                                            fontSize: '14px',
-                                            fontWeight: '600',
-                                            cursor: replyMessage.trim() && !isSubmitting ? 'pointer' : 'not-allowed',
-                                            transition: 'all 0.3s ease'
-                                        }}
-                                    >
-                                        {isSubmitting ? 'Sending...' : 'Send Reply 🌊'}
-                                    </button>
+                                                <label style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    cursor: 'pointer'
+                                                }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isAnonymousReply}
+                                                        onChange={(e) => setIsAnonymousReply(e.target.checked)}
+                                                        style={{
+                                                            width: '16px',
+                                                            height: '16px',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    />
+                                                    <span style={{
+                                                        color: 'rgba(255, 255, 255, 0.8)',
+                                                        fontSize: '13px'
+                                                    }}>
+                                                        Send anonymously 🎭
+                                                    </span>
+                                                </label>
+                                                
+                                                <div style={{
+                                                    color: replyMessage.length > 250 ? '#ff6b6b' : 'rgba(255, 255, 255, 0.6)',
+                                                    fontSize: '12px'
+                                                }}>
+                                                    {replyMessage.length}/280 characters
+                                                </div>
+                                            </div>
+                                            
+                                            <button
+                                                onClick={handleSendReply}
+                                                disabled={!replyMessage.trim() || isSubmitting || hasReplied}
+                                                style={{
+                                                    width: '100%',
+                                                    background: replyMessage.trim() && !isSubmitting && !hasReplied
+                                                        ? 'linear-gradient(135deg, #4a90e2, #8a7fff)'
+                                                        : 'rgba(255, 255, 255, 0.1)',
+                                                    color: replyMessage.trim() && !isSubmitting && !hasReplied ? 'white' : 'rgba(255, 255, 255, 0.3)',
+                                                    border: 'none',
+                                                    borderRadius: '10px',
+                                                    padding: '12px',
+                                                    fontSize: '14px',
+                                                    fontWeight: '600',
+                                                    cursor: replyMessage.trim() && !isSubmitting && !hasReplied ? 'pointer' : 'not-allowed',
+                                                    transition: 'all 0.3s ease'
+                                                }}
+                                                onMouseOver={(e) => {
+                                                    if (replyMessage.trim() && !isSubmitting && !hasReplied) {
+                                                        e.target.style.transform = 'translateY(-2px)';
+                                                        e.target.style.boxShadow = '0 8px 20px rgba(138, 127, 255, 0.3)';
+                                                    }
+                                                }}
+                                                onMouseOut={(e) => {
+                                                    e.target.style.transform = 'translateY(0)';
+                                                    e.target.style.boxShadow = 'none';
+                                                }}
+                                            >
+                                                {isSubmitting ? 'Sending...' : 'Send Reply 🌊'}
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </>
                         )}
@@ -394,18 +504,30 @@ const BottleDetailsModal = ({ bottle, onClose, user }) => {
                         disabled={loadingReplies}
                         style={{
                             width: '100%',
-                            background: 'rgba(255, 255, 255, 0.1)',
-                            color: 'white',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            background: 'rgba(74, 144, 226, 0.2)',
+                            color: '#4a90e2',
+                            border: '1px solid rgba(74, 144, 226, 0.3)',
                             borderRadius: '10px',
                             padding: '10px',
                             fontSize: '13px',
+                            fontWeight: '600',
                             cursor: 'pointer',
                             marginBottom: '15px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '8px'
+                            gap: '8px',
+                            transition: 'all 0.3s ease'
+                        }}
+                        onMouseOver={(e) => {
+                            if (!loadingReplies) {
+                                e.target.style.background = 'rgba(74, 144, 226, 0.3)';
+                                e.target.style.color = 'white';
+                            }
+                        }}
+                        onMouseOut={(e) => {
+                            e.target.style.background = 'rgba(74, 144, 226, 0.2)';
+                            e.target.style.color = '#4a90e2';
                         }}
                     >
                         {loadingReplies ? 'Loading...' : `View ${replies.length} reply${replies.length !== 1 ? 's' : ''}`}
@@ -433,41 +555,47 @@ const BottleDetailsModal = ({ bottle, onClose, user }) => {
                         </div>
                         
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            {replies.map((reply, index) => (
-                                <div key={reply.id} style={{
-                                    background: 'rgba(255, 255, 255, 0.05)',
-                                    borderRadius: '8px',
-                                    padding: '12px',
-                                    borderLeft: '3px solid #4a90e2'
-                                }}>
-                                    <div style={{
-                                        color: 'rgba(255, 255, 255, 0.9)',
-                                        fontSize: '13px',
-                                        lineHeight: '1.5',
-                                        marginBottom: '6px'
-                                    }}>
-                                        {reply.message}
-                                    </div>
-                                    <div style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center'
+                            {replies.map((reply, index) => {
+                                const isUsersReply = userDonationIds.includes(reply.sender_donation_id);
+                                return (
+                                    <div key={reply.id} style={{
+                                        background: 'rgba(255, 255, 255, 0.05)',
+                                        borderRadius: '8px',
+                                        padding: '12px',
+                                        borderLeft: `3px solid ${isUsersReply ? '#6bcf7f' : '#4a90e2'}`
                                     }}>
                                         <div style={{
-                                            color: 'rgba(255, 255, 255, 0.5)',
-                                            fontSize: '11px'
+                                            color: 'rgba(255, 255, 255, 0.9)',
+                                            fontSize: '13px',
+                                            lineHeight: '1.5',
+                                            marginBottom: '6px'
                                         }}>
-                                            {reply.is_anonymous ? 'Anonymous' : 'From you'}
+                                            {reply.message}
                                         </div>
                                         <div style={{
-                                            color: 'rgba(255, 255, 255, 0.5)',
-                                            fontSize: '11px'
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center'
                                         }}>
-                                            {formatDate(reply.created_at)}
+                                            <div style={{
+                                                color: 'rgba(255, 255, 255, 0.5)',
+                                                fontSize: '11px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                            }}>
+                                                {isUsersReply ? '✅ Your reply' : (reply.is_anonymous ? 'Anonymous' : 'From donor')}
+                                            </div>
+                                            <div style={{
+                                                color: 'rgba(255, 255, 255, 0.5)',
+                                                fontSize: '11px'
+                                            }}>
+                                                {formatDate(reply.created_at)}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -483,6 +611,8 @@ const BottleDetailsModal = ({ bottle, onClose, user }) => {
                 }}>
                     {!bottle.allow_reply ? (
                         "This bottle does not allow replies"
+                    ) : hasReplied ? (
+                        "You have already replied to this bottle"
                     ) : replySent ? (
                         "The bottle sender will be notified of your reply"
                     ) : (

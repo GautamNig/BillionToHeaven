@@ -320,41 +320,122 @@ export class MessageBottleService {
      * @returns {Promise<object>} Created reply
      */
     static async addReply(bottleId, donationId, message, isAnonymous = true) {
-        try {
-            // Check if bottle allows replies
-            const { data: bottle, error: bottleError } = await supabase
-                .from('message_bottles')
-                .select('allow_reply')
-                .eq('id', bottleId)
-                .single();
-            
-            if (bottleError) throw bottleError;
-            
-            if (!bottle.allow_reply) {
-                throw new Error('This bottle does not allow replies');
-            }
-            
-            const replyData = {
-                bottle_id: bottleId,
-                sender_donation_id: donationId,
-                message: message,
-                is_anonymous: isAnonymous
-            };
-            
-            const { data, error } = await supabase
-                .from('bottle_replies')
-                .insert([replyData])
-                .select()
-                .single();
-            
-            if (error) throw error;
-            return data;
-            
-        } catch (error) {
-            console.error('Error adding reply:', error);
-            throw error;
+    try {
+        // Check if bottle allows replies
+        const { data: bottle, error: bottleError } = await supabase
+            .from('message_bottles')
+            .select('allow_reply, sender_donation_id, donations!sender_donation_id(user_id)')
+            .eq('id', bottleId)
+            .single();
+        
+        if (bottleError) throw bottleError;
+        
+        if (!bottle.allow_reply) {
+            throw new Error('This bottle does not allow replies');
         }
+        
+        // Check if this user already replied to this bottle
+        const { data: existingReplies, error: existingError } = await supabase
+            .from('bottle_replies')
+            .select('id')
+            .eq('bottle_id', bottleId)
+            .eq('sender_donation_id', donationId);
+        
+        if (existingError) throw existingError;
+        
+        if (existingReplies && existingReplies.length > 0) {
+            throw new Error('You have already replied to this bottle. Only one reply per person is allowed.');
+        }
+        
+        // Check if the replier is the original sender (prevent replying to own bottle)
+        if (bottle.sender_donation_id === donationId) {
+            throw new Error('You cannot reply to your own bottle.');
+        }
+        
+        // REMOVE reply_number field since it doesn't exist in database
+        const replyData = {
+            bottle_id: bottleId,
+            sender_donation_id: donationId,
+            message: message,
+            is_anonymous: isAnonymous
+        };
+        
+        const { data: reply, error: replyError } = await supabase
+            .from('bottle_replies')
+            .insert([replyData])
+            .select(`
+                *,
+                sender_donation:donations!sender_donation_id(amount, user_email)
+            `)
+            .single();
+        
+        if (replyError) {
+            // Check if it's a unique constraint violation
+            if (replyError.message && replyError.message.includes('unique constraint')) {
+                throw new Error('You have already replied to this bottle. Only one reply per person is allowed.');
+            }
+            throw replyError;
+        }
+        
+        // Create a notification for the bottle sender
+        await this.createReplyNotification(bottleId, reply.id, bottle.sender_donation_id, bottle.donations?.user_id);
+        
+        return reply;
+        
+    } catch (error) {
+        console.error('Error adding reply:', error);
+        throw error;
     }
+}
+
+/**
+ * Create a notification for the bottle sender when someone replies
+ * @param {string} bottleId - Bottle ID
+ * @param {string} replyId - Reply ID
+ * @param {string} senderDonationId - Original sender's donation ID
+ * @param {string} senderUserId - Original sender's user ID
+ */
+static async createReplyNotification(bottleId, replyId, senderDonationId, senderUserId) {
+    try {
+        if (!senderUserId) {
+            // Get user ID from donation
+            const { data: donation } = await supabase
+                .from('donations')
+                .select('user_id')
+                .eq('id', senderDonationId)
+                .single();
+            
+            if (donation) {
+                senderUserId = donation.user_id;
+            }
+        }
+        
+        if (!senderUserId) {
+            console.warn('Could not find sender user ID for reply notification');
+            return;
+        }
+        
+        console.log(`🔔 Creating reply notification for user ${senderUserId}`);
+        
+        // We could create a notification table, but for now let's use bottle status
+        // or create a simple notification system
+        
+        // Option 1: Update bottle status to show it has replies
+        await supabase
+            .from('message_bottles')
+            .update({
+                has_replies: true,
+                last_reply_at: new Date().toISOString()
+            })
+            .eq('id', bottleId);
+        
+        // Option 2: Log the notification (we'll implement proper notifications later)
+        console.log(`💌 Reply sent to bottle ${bottleId}, sender ${senderUserId} should be notified`);
+        
+    } catch (error) {
+        console.error('Error creating reply notification:', error);
+    }
+}
     
     /**
      * Subscribe to bottle updates for a user

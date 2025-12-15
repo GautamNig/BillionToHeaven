@@ -38,36 +38,48 @@ const NotificationBell = ({ onOpenInbox }) => { // Add onOpenInbox prop
     }, [user]);
 
     const loadNotifications = async () => {
-        if (!user) return;
+    if (!user) return;
+    
+    setIsLoading(true);
+    try {
+        const bottles = await MessageBottleService.getUserBottles(user.id);
         
-        setIsLoading(true);
-        try {
-            const bottles = await MessageBottleService.getUserBottles(user.id);
-            
-            // Count unread bottles (status = 'found')
-            const unread = bottles.found.filter(b => b.status === 'found').length;
-            setUnreadCount(unread);
-            
-            // Create notifications from found bottles
-            const notifs = bottles.found
-                .filter(b => b.status === 'found')
-                .map(bottle => ({
-                    id: bottle.id,
-                    type: 'bottle_found',
-                    message: '🎉 You found a message bottle!',
-                    timestamp: bottle.found_at,
-                    data: bottle,
-                    isRead: bottle.status === 'read'
-                }));
-            
-            setNotifications(notifs);
-            
-        } catch (error) {
-            console.error('Error loading notifications:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+        // Count unread bottles (status = 'found')
+        const unread = bottles.found.filter(b => b.status === 'found').length;
+        setUnreadCount(unread);
+        
+        // Create notifications from found bottles
+        const bottleNotifications = bottles.found
+            .filter(b => b.status === 'found')
+            .map(bottle => ({
+                id: bottle.id,
+                type: 'bottle_found',
+                message: '🎉 You found a message bottle!',
+                timestamp: bottle.found_at,
+                data: bottle,
+                isRead: bottle.status === 'read'
+            }));
+        
+        // Create notifications for replies to sent bottles
+        const replyNotifications = bottles.sent
+            .filter(b => b.has_replies || b.last_reply_at)
+            .map(bottle => ({
+                id: bottle.id,
+                type: 'bottle_reply',
+                message: '💌 Someone replied to your bottle!',
+                timestamp: bottle.last_reply_at || bottle.updated_at,
+                data: bottle,
+                isRead: false
+            }));
+        
+        setNotifications([...bottleNotifications, ...replyNotifications]);
+        
+    } catch (error) {
+        console.error('Error loading notifications:', error);
+    } finally {
+        setIsLoading(false);
+    }
+};
 
     const handleBellClick = () => {
         setShowDropdown(!showDropdown);

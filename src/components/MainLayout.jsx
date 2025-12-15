@@ -1,17 +1,116 @@
-// src/components/MainLayout.jsx - UPDATED
-import React, { useState } from 'react';
+// src/components/MainLayout.jsx - UPDATED WITH PROPER VIEWED TRACKING
+import React, { useState, useEffect } from 'react';
 import RiveAnimation from './RiveAnimation';
 import { UIStrings } from '../config/uiStrings';
 import useAuth from '../hooks/useAuth';
 import { AuthService } from '../lib/auth';
 import NotificationBell from './NotificationBell';
 import BottleInventory from './BottleInventory';
-import BottleInboxTab from './BottleInboxTab'; // Add this import
+import BottleInboxTab from './BottleInboxTab';
+import SentBottlesTab from './SentBottlesTab';
+import { MessageBottleService } from '../lib/messageBottleService';
+import { supabase } from '../lib/supabase';
 
 const MainLayout = () => {
     const [activeTab, setActiveTab] = useState('animation');
-    const [showBottleInbox, setShowBottleInbox] = useState(false); // Add state for inbox
+    const [showBottleInbox, setShowBottleInbox] = useState(false);
+    const [showSentBottles, setShowSentBottles] = useState(false);
+    const [unreadRepliesCount, setUnreadRepliesCount] = useState(0);
+    const [viewedBottleIds, setViewedBottleIds] = useState(new Set()); // Track viewed bottles
+
     const { user, signOut } = useAuth();
+
+    // Load viewed bottles from localStorage on mount
+    useEffect(() => {
+        if (user) {
+            const storedViewed = localStorage.getItem(`viewed_bottles_${user.id}`);
+            if (storedViewed) {
+                try {
+                    const viewedIds = new Set(JSON.parse(storedViewed));
+                    setViewedBottleIds(viewedIds);
+                    console.log(`📋 Loaded ${viewedIds.size} viewed bottles from localStorage`);
+                } catch (error) {
+                    console.error('Error loading viewed bottles from localStorage:', error);
+                }
+            }
+        }
+    }, [user]);
+
+    // Function to load reply counts - ONLY count unviewed bottles with replies
+    const loadReplyCounts = async () => {
+        if (!user) return;
+        
+        try {
+            const bottles = await MessageBottleService.getUserBottles(user.id);
+            const sentBottles = bottles.sent || [];
+            
+            // Count only bottles with replies that haven't been viewed yet
+            const newRepliesCount = sentBottles.filter(b => 
+                b.has_replies && !viewedBottleIds.has(b.id)
+            ).length;
+            
+            setUnreadRepliesCount(newRepliesCount);
+            console.log(`📊 Badge count: ${newRepliesCount} (${sentBottles.filter(b => b.has_replies).length} total with replies, ${viewedBottleIds.size} viewed)`);
+            
+        } catch (error) {
+            console.error('Error loading reply counts:', error);
+        }
+    };
+
+    // Mark a bottle as viewed and save to localStorage
+    const markBottleAsViewed = (bottleId) => {
+        setViewedBottleIds(prev => {
+            const newSet = new Set([...prev, bottleId]);
+            // Save to localStorage
+            if (user) {
+                localStorage.setItem(`viewed_bottles_${user.id}`, JSON.stringify([...newSet]));
+            }
+            console.log(`✅ Marked bottle ${bottleId} as viewed. Total viewed: ${newSet.size}`);
+            return newSet;
+        });
+        
+        // Reload counts after marking as viewed
+        setTimeout(loadReplyCounts, 100); // Small delay to ensure state updates
+    };
+
+    // Load reply counts on user change and regularly
+    useEffect(() => {
+        if (user) {
+            loadReplyCounts();
+            
+            // Subscribe to reply updates
+            const subscription = supabase
+                .channel('reply-counts-updates')
+                .on('postgres_changes',
+                    {
+                        event: 'INSERT',
+                        schema: 'public',
+                        table: 'bottle_replies'
+                    },
+                    () => {
+                        console.log('🔄 New reply detected, updating badge count');
+                        setTimeout(loadReplyCounts, 500); // Small delay to ensure DB updates
+                    }
+                )
+                .on('postgres_changes',
+                    {
+                        event: 'UPDATE',
+                        schema: 'public',
+                        table: 'message_bottles'
+                    },
+                    (payload) => {
+                        // Check if this is an update to has_replies
+                        if (payload.new.has_replies) {
+                            console.log('🔄 Bottle has_replies updated, updating badge count');
+                            setTimeout(loadReplyCounts, 500);
+                        }
+                    }
+                )
+                .subscribe();
+            
+            return () => subscription.unsubscribe();
+        }
+    }, [user]);
 
     const handleSignOut = async () => {
         try {
@@ -24,6 +123,12 @@ const MainLayout = () => {
     // Function to open bottle inbox from notifications
     const handleOpenBottleInbox = () => {
         setShowBottleInbox(true);
+    };
+
+    // Clear badge when opening sent bottles tab
+    const handleOpenSentBottles = () => {
+        setShowSentBottles(true);
+        console.log('📤 Opening sent bottles tab');
     };
 
     return (
@@ -47,7 +152,7 @@ const MainLayout = () => {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 zIndex: 1000,
-                height: '60px', // Fixed height
+                height: '60px',
                 boxSizing: 'border-box'
             }}>
                 {/* Logo/Title */}
@@ -102,11 +207,66 @@ const MainLayout = () => {
                             alignItems: 'center',
                             gap: '12px'
                         }}>
-                            {/* Update NotificationBell to open inbox */}
+                            {/* Notification Bell */}
                             <NotificationBell 
                                 onOpenInbox={handleOpenBottleInbox} 
                             />
+                            
+                            {/* Bottle Inventory */}
                             <BottleInventory />
+                            
+                            {/* Sent Bottles Button with Badge */}
+                            <div style={{ position: 'relative' }}>
+                                <button
+                                    onClick={handleOpenSentBottles}
+                                    style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        padding: '8px',
+                                        borderRadius: '50%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '20px',
+                                        position: 'relative',
+                                        transition: 'all 0.3s ease'
+                                    }}
+                                    onMouseOver={(e) => {
+                                        e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                                    }}
+                                    onMouseOut={(e) => {
+                                        e.target.style.background = 'transparent';
+                                    }}
+                                    title={`View your sent bottles${unreadRepliesCount > 0 ? ` (${unreadRepliesCount} new replies)` : ''}`}
+                                >
+                                    📤
+                                    {unreadRepliesCount > 0 && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            top: '-5px',
+                                            right: '-5px',
+                                            background: '#ff6b6b',
+                                            color: 'white',
+                                            fontSize: '10px',
+                                            fontWeight: 'bold',
+                                            minWidth: '18px',
+                                            height: '18px',
+                                            borderRadius: '50%',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            padding: '2px',
+                                            border: '2px solid rgba(0, 0, 0, 0.95)',
+                                            animation: 'pulse 2s infinite'
+                                        }}>
+                                            {unreadRepliesCount > 9 ? '9+' : unreadRepliesCount}
+                                        </div>
+                                    )}
+                                </button>
+                            </div>
+                            
+                            {/* User Info */}
                             <div style={{
                                 background: 'rgba(107, 207, 127, 0.2)',
                                 padding: '8px 16px',
@@ -132,6 +292,7 @@ const MainLayout = () => {
                                 </div>
                             </div>
 
+                            {/* Sign Out Button */}
                             <button
                                 onClick={handleSignOut}
                                 style={{
@@ -143,6 +304,12 @@ const MainLayout = () => {
                                     fontSize: '12px',
                                     cursor: 'pointer',
                                     transition: 'all 0.3s ease'
+                                }}
+                                onMouseOver={(e) => {
+                                    e.target.style.background = 'rgba(255, 107, 107, 0.3)';
+                                }}
+                                onMouseOut={(e) => {
+                                    e.target.style.background = 'rgba(255, 107, 107, 0.2)';
                                 }}
                             >
                                 {UIStrings.AUTH.SIGN_OUT}
@@ -188,7 +355,7 @@ const MainLayout = () => {
                 flex: 1,
                 position: 'relative',
                 overflow: 'hidden',
-                height: 'calc(100vh - 80px)' // Subtract header height
+                height: 'calc(100vh - 80px)'
             }}>
                 {/* RiveAnimation - Always mounted but hidden when not active */}
                 <div style={{
@@ -207,6 +374,18 @@ const MainLayout = () => {
             <BottleInboxTab
                 isOpen={showBottleInbox}
                 onClose={() => setShowBottleInbox(false)}
+            />
+            
+            {/* Sent Bottles Tab */}
+            <SentBottlesTab
+                isOpen={showSentBottles}
+                onClose={() => {
+                    setShowSentBottles(false);
+                    // Reload counts when closing the tab
+                    setTimeout(loadReplyCounts, 100);
+                }}
+                onBottleViewed={markBottleAsViewed}
+                user={user}
             />
         </div>
     );
