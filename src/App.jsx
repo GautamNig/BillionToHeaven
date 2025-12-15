@@ -4,7 +4,7 @@ import { PayPalScriptProvider } from '@paypal/react-paypal-js';
 import MainLayout from './components/MainLayout';
 import './App.css';
 import './styles/animations.css';
-
+import QueueTest from './components/QueueTestHelper'; // Import the new component
 // Move PayPal provider options outside component to avoid re-renders
 const paypalOptions = {
     "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID_SANDBOX,
@@ -16,6 +16,7 @@ function App() {
     return (
         <PayPalScriptProvider options={paypalOptions}>
             <div className="app">
+                 {/* <QueueTest />  */}
                 <MainLayout />
             </div>
         </PayPalScriptProvider>

@@ -4,6 +4,7 @@
 -- =============================================
 
 -- First, drop all existing tables if they exist (clean start)
+DROP TABLE IF EXISTS bottle_queue_entries CASCADE;
 DROP TABLE IF EXISTS bottle_replies CASCADE;
 DROP TABLE IF EXISTS message_bottles CASCADE;
 DROP TABLE IF EXISTS bottle_inventory CASCADE;
@@ -31,6 +32,20 @@ CREATE TABLE bottle_inventory (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
     UNIQUE(donation_id) -- Each donation gives exactly one bottle
+);
+
+-- =============================================
+-- QUEUE TABLE (MINIMAL - STEP 1)
+-- =============================================
+
+CREATE TABLE bottle_queue_entries (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL,
+    donation_id UUID UNIQUE NOT NULL REFERENCES donations(id) ON DELETE CASCADE,
+    queue_position INTEGER NOT NULL,
+    status VARCHAR(20) DEFAULT 'waiting' CHECK (status IN ('waiting', 'served')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    served_at TIMESTAMP WITH TIME ZONE
 );
 
 -- =============================================
@@ -102,11 +117,16 @@ CREATE INDEX donations_created_at_idx ON donations(created_at);
 CREATE INDEX idx_inventory_user_status ON bottle_inventory(user_id, status);
 CREATE INDEX idx_inventory_donation ON bottle_inventory(donation_id);
 
+-- Queue indexes (MINIMAL - STEP 1)
+CREATE INDEX idx_queue_waiting_position ON bottle_queue_entries (queue_position) WHERE status = 'waiting';
+CREATE INDEX idx_queue_user ON bottle_queue_entries (user_id, status);
+
 -- Message bottles indexes
 CREATE INDEX idx_bottles_status ON message_bottles(status);
 CREATE INDEX idx_bottles_sender ON message_bottles(sender_donation_id);
 CREATE INDEX idx_bottles_finder ON message_bottles(finder_donation_id);
 CREATE INDEX idx_bottles_inventory ON message_bottles(inventory_id);
+CREATE INDEX idx_bottles_floating ON message_bottles(status, created_at) WHERE status = 'floating';
 
 -- Bottle replies indexes
 CREATE INDEX idx_replies_bottle ON bottle_replies(bottle_id);
@@ -159,6 +179,26 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Function to auto-set queue position on insert
+CREATE OR REPLACE FUNCTION set_queue_position()
+RETURNS TRIGGER AS $$
+DECLARE
+    max_position INTEGER;
+BEGIN
+    IF NEW.queue_position IS NULL THEN
+        SELECT COALESCE(MAX(queue_position), 0) INTO max_position 
+        FROM bottle_queue_entries;
+        
+        NEW.queue_position := max_position + 1;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER set_bottle_queue_position 
+BEFORE INSERT ON bottle_queue_entries
+FOR EACH ROW EXECUTE FUNCTION set_queue_position();
+
 -- =============================================
 -- ENABLE ROW LEVEL SECURITY
 -- =============================================
@@ -166,6 +206,7 @@ $$ LANGUAGE plpgsql;
 -- Enable Row Level Security
 ALTER TABLE donations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bottle_inventory ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bottle_queue_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE goals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE message_bottles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bottle_replies ENABLE ROW LEVEL SECURITY;
@@ -185,6 +226,9 @@ BEGIN
     
     -- Bottle inventory policies
     DROP POLICY IF EXISTS "Enable all operations for inventory" ON bottle_inventory;
+    
+    -- Queue policies
+    DROP POLICY IF EXISTS "Enable all operations for queue" ON bottle_queue_entries;
     
     -- Goals policies
     DROP POLICY IF EXISTS "Enable all operations for goals" ON goals;
@@ -215,6 +259,9 @@ FOR ALL USING (true);
 CREATE POLICY "Enable all operations for inventory" ON bottle_inventory
 FOR ALL USING (true);
 
+CREATE POLICY "Enable all operations for queue" ON bottle_queue_entries
+FOR ALL USING (true);
+
 CREATE POLICY "Enable all operations for goals" ON goals
 FOR ALL USING (true);
 
@@ -238,6 +285,7 @@ BEGIN;
   -- Add tables to publication
   ALTER PUBLICATION supabase_realtime ADD TABLE donations;
   ALTER PUBLICATION supabase_realtime ADD TABLE bottle_inventory;
+  ALTER PUBLICATION supabase_realtime ADD TABLE bottle_queue_entries;
   ALTER PUBLICATION supabase_realtime ADD TABLE goals;
   ALTER PUBLICATION supabase_realtime ADD TABLE message_bottles;
   ALTER PUBLICATION supabase_realtime ADD TABLE bottle_replies;

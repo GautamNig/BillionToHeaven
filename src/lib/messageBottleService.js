@@ -10,165 +10,239 @@ export class MessageBottleService {
      * @param {object} messageData - Message content and options
      * @returns {Promise<object>} Created bottle
      */
-    static async createBottle(donationId, messageData, inventoryId) {  // ADD inventoryId parameter
-    try {
-        // Get donation details for metadata
-        const { data: donation, error: donationError } = await supabase
-            .from('donations')
-            .select('amount, user_id, user_email')
-            .eq('id', donationId)
-            .single();
-        
-        if (donationError) throw donationError;
-        
-        const bottleData = {
-            sender_donation_id: donationId,
-            inventory_id: inventoryId,  // ADD THIS
-            message: messageData.message,
-            is_anonymous: messageData.isAnonymous !== false,
-            show_donation_amount: messageData.showDonationAmount || false,
-            allow_reply: messageData.allowReply !== false,
-            bottle_color: getBottleColor(donation.amount),
-            status: 'floating'
-        };
-        
-        const { data, error } = await supabase
-            .from('message_bottles')
-            .insert([bottleData])
-            .select()
-            .single();
-        
-        if (error) throw error;
-        return data;
-        
-    } catch (error) {
-        console.error('Error creating message bottle:', error);
-        throw error;
+    static async createBottle(donationId, messageData, inventoryId) {
+        try {
+            // Get donation details for metadata
+            const { data: donation, error: donationError } = await supabase
+                .from('donations')
+                .select('amount, user_id, user_email')
+                .eq('id', donationId)
+                .single();
+            
+            if (donationError) throw donationError;
+            
+            const bottleData = {
+                sender_donation_id: donationId,
+                inventory_id: inventoryId,
+                message: messageData.message,
+                is_anonymous: messageData.isAnonymous !== false,
+                show_donation_amount: messageData.showDonationAmount || false,
+                allow_reply: messageData.allowReply !== false,
+                bottle_color: getBottleColor(donation.amount),
+                status: 'floating'
+            };
+            
+            const { data, error } = await supabase
+                .from('message_bottles')
+                .insert([bottleData])
+                .select()
+                .single();
+            
+            if (error) throw error;
+            
+            // STEP 1: Try to serve this bottle to someone in queue
+            await this.serveFloatingBottleToQueue(data.id, donation.user_id);
+            
+            return data;
+            
+        } catch (error) {
+            console.error('Error creating message bottle:', error);
+            throw error;
+        }
     }
-}
+    
+    /**
+     * Try to serve a floating bottle to someone in queue
+     * MINIMAL QUEUE INTEGRATION - STEP 1
+     */
+    static async serveFloatingBottleToQueue(bottleId, dropperUserId = null) {
+        try {
+            console.log(`🏺 Queue: Checking if bottle ${bottleId} can be served to queue`);
+            
+            // Find next person in queue (excluding the dropper if they're in queue)
+            let query = supabase
+                .from('bottle_queue_entries')
+                .select('*')
+                .eq('status', 'waiting')
+                .order('queue_position', { ascending: true })
+                .limit(1);
+            
+            if (dropperUserId) {
+                query = query.neq('user_id', dropperUserId);
+            }
+            
+            const { data: nextInQueue, error } = await query.maybeSingle();
+            
+            if (error) {
+                console.error('❌ Queue query error:', error);
+                return null;
+            }
+            
+            if (!nextInQueue) {
+                console.log('ℹ️ Queue: No one waiting in queue, bottle floats');
+                return null;
+            }
+            
+            console.log(`✅ Queue: Serving bottle to user ${nextInQueue.user_id} at position ${nextInQueue.queue_position}`);
+            
+            // Update bottle status
+            const { error: bottleError } = await supabase
+                .from('message_bottles')
+                .update({
+                    status: 'found',
+                    finder_donation_id: nextInQueue.donation_id,
+                    found_at: new Date().toISOString()
+                })
+                .eq('id', bottleId);
+            
+            if (bottleError) throw bottleError;
+            
+            // Update queue entry
+            const { error: queueError } = await supabase
+                .from('bottle_queue_entries')
+                .update({
+                    status: 'served',
+                    served_at: new Date().toISOString()
+                })
+                .eq('id', nextInQueue.id);
+            
+            if (queueError) throw queueError;
+            
+            // Send notification (we'll implement this properly later)
+            console.log(`🔔 Queue: Bottle ${bottleId} served to user ${nextInQueue.user_id}`);
+            
+            return {
+                served: true,
+                userId: nextInQueue.user_id,
+                queuePosition: nextInQueue.queue_position
+            };
+            
+        } catch (error) {
+            console.error('❌ Queue: Error serving bottle to queue:', error);
+            return null;
+        }
+    }
     
     /**
      * Find a random floating bottle for a donor
      * @param {string} finderDonationId - The donation ID of the finder
      * @returns {Promise<object|null>} Found bottle or null
      */
-    // Update MessageBottleService.findRandomBottle
-static async findRandomBottle(finderDonationId, finderUserId = null) {
-    try {
-        // Get a random floating bottle that's NOT from the finder
-        let query = supabase
-            .from('message_bottles')
-            .select('*')
-            .eq('status', 'floating');
-        
-        // Exclude user's own bottles if user is authenticated
-        if (finderUserId) {
-            // Get all donation IDs from this user
-            const { data: userDonations } = await supabase
-                .from('donations')
-                .select('id')
-                .eq('user_id', finderUserId);
+    static async findRandomBottle(finderDonationId, finderUserId = null) {
+        try {
+            // Get a random floating bottle that's NOT from the finder
+            let query = supabase
+                .from('message_bottles')
+                .select('*')
+                .eq('status', 'floating');
             
-            if (userDonations && userDonations.length > 0) {
-                const userDonationIds = userDonations.map(d => d.id);
-                query = query.not('sender_donation_id', 'in', `(${userDonationIds.join(',')})`);
+            // Exclude user's own bottles if user is authenticated
+            if (finderUserId) {
+                // Get all donation IDs from this user
+                const { data: userDonations } = await supabase
+                    .from('donations')
+                    .select('id')
+                    .eq('user_id', finderUserId);
+                
+                if (userDonations && userDonations.length > 0) {
+                    const userDonationIds = userDonations.map(d => d.id);
+                    query = query.not('sender_donation_id', 'in', `(${userDonationIds.join(',')})`);
+                }
             }
+            
+            const { data: bottles, error } = await query
+                .order('created_at', { ascending: true })
+                .limit(1);
+            
+            if (error) throw error;
+            
+            if (!bottles || bottles.length === 0) {
+                return null;
+            }
+            
+            const bottle = bottles[0];
+            
+            // Update bottle status
+            const { data: updatedBottle, error: updateError } = await supabase
+                .from('message_bottles')
+                .update({
+                    status: 'found',
+                    finder_donation_id: finderDonationId,
+                    found_at: new Date().toISOString()
+                })
+                .eq('id', bottle.id)
+                .select()
+                .single();
+            
+            if (updateError) throw updateError;
+            
+            return updatedBottle;
+            
+        } catch (error) {
+            console.error('Error finding random bottle:', error);
+            throw error;
         }
-        
-        const { data: bottles, error } = await query
-            .order('created_at', { ascending: true })
-            .limit(1);
-        
-        if (error) throw error;
-        
-        if (!bottles || bottles.length === 0) {
-            return null;
-        }
-        
-        const bottle = bottles[0];
-        
-        // Update bottle status
-        const { data: updatedBottle, error: updateError } = await supabase
-            .from('message_bottles')
-            .update({
-                status: 'found',
-                finder_donation_id: finderDonationId,
-                found_at: new Date().toISOString()
-            })
-            .eq('id', bottle.id)
-            .select()
-            .single();
-        
-        if (updateError) throw updateError;
-        
-        return updatedBottle;
-        
-    } catch (error) {
-        console.error('Error finding random bottle:', error);
-        throw error;
     }
-}
     
     /**
      * Get bottles for a user (sent and found)
      * @param {string} userId - User ID
      * @returns {Promise<object>} User's bottles
      */
-    // Update the getUserBottles function in messageBottleService.js
-static async getUserBottles(userId) {
-    try {
-        // First, get donation IDs for this user
-        const { data: userDonations, error: donationsError } = await supabase
-            .from('donations')
-            .select('id')
-            .eq('user_id', userId);
-        
-        if (donationsError) throw donationsError;
-        
-        if (!userDonations || userDonations.length === 0) {
+    static async getUserBottles(userId) {
+        try {
+            // First, get donation IDs for this user
+            const { data: userDonations, error: donationsError } = await supabase
+                .from('donations')
+                .select('id')
+                .eq('user_id', userId);
+            
+            if (donationsError) throw donationsError;
+            
+            if (!userDonations || userDonations.length === 0) {
+                return {
+                    sent: [],
+                    found: [],
+                    unreadCount: 0
+                };
+            }
+            
+            const donationIds = userDonations.map(d => d.id);
+            
+            // Get bottles sent by user
+            const { data: sentBottles, error: sentError } = await supabase
+                .from('message_bottles')
+                .select(`
+                    *,
+                    donations!sender_donation_id (amount, created_at)
+                `)
+                .in('sender_donation_id', donationIds);
+            
+            if (sentError) throw sentError;
+            
+            // Get bottles found by user
+            const { data: foundBottles, error: foundError } = await supabase
+                .from('message_bottles')
+                .select(`
+                    *,
+                    donations!sender_donation_id (amount, created_at, user_email),
+                    finder_donation:donations!finder_donation_id (amount, created_at)
+                `)
+                .in('finder_donation_id', donationIds);
+            
+            if (foundError) throw foundError;
+            
             return {
-                sent: [],
-                found: [],
-                unreadCount: 0
+                sent: sentBottles || [],
+                found: foundBottles || [],
+                unreadCount: (foundBottles || []).filter(b => b.status === 'found').length
             };
+            
+        } catch (error) {
+            console.error('Error getting user bottles:', error);
+            throw error;
         }
-        
-        const donationIds = userDonations.map(d => d.id);
-        
-        // Get bottles sent by user
-        const { data: sentBottles, error: sentError } = await supabase
-            .from('message_bottles')
-            .select(`
-                *,
-                donations!sender_donation_id (amount, created_at)
-            `)
-            .in('sender_donation_id', donationIds);
-        
-        if (sentError) throw sentError;
-        
-        // Get bottles found by user
-        const { data: foundBottles, error: foundError } = await supabase
-            .from('message_bottles')
-            .select(`
-                *,
-                donations!sender_donation_id (amount, created_at, user_email),
-                finder_donation:donations!finder_donation_id (amount, created_at)
-            `)
-            .in('finder_donation_id', donationIds);
-        
-        if (foundError) throw foundError;
-        
-        return {
-            sent: sentBottles || [],
-            found: foundBottles || [],
-            unreadCount: (foundBottles || []).filter(b => b.status === 'found').length
-        };
-        
-    } catch (error) {
-        console.error('Error getting user bottles:', error);
-        throw error;
     }
-}
     
     /**
      * Mark a bottle as read
@@ -289,38 +363,38 @@ static async getUserBottles(userId) {
      * @returns {object} Subscription
      */
     static subscribeToUserBottles(userId, callback) {
-    // We need to get donation IDs first
-    return supabase
-        .channel('user-bottles')
-        .on('postgres_changes', 
-            { 
-                event: '*', 
-                schema: 'public', 
-                table: 'message_bottles' 
-            },
-            async (payload) => {
-                // Filter in callback to check if this bottle belongs to user
-                try {
-                    const userDonations = await supabase
-                        .from('donations')
-                        .select('id')
-                        .eq('user_id', userId);
-                    
-                    if (userDonations.data) {
-                        const donationIds = userDonations.data.map(d => d.id);
-                        const bottle = payload.new;
+        // We need to get donation IDs first
+        return supabase
+            .channel('user-bottles')
+            .on('postgres_changes', 
+                { 
+                    event: '*', 
+                    schema: 'public', 
+                    table: 'message_bottles' 
+                },
+                async (payload) => {
+                    // Filter in callback to check if this bottle belongs to user
+                    try {
+                        const userDonations = await supabase
+                            .from('donations')
+                            .select('id')
+                            .eq('user_id', userId);
                         
-                        // Check if this bottle belongs to user
-                        if (donationIds.includes(bottle.sender_donation_id) || 
-                            donationIds.includes(bottle.finder_donation_id)) {
-                            callback(payload);
+                        if (userDonations.data) {
+                            const donationIds = userDonations.data.map(d => d.id);
+                            const bottle = payload.new;
+                            
+                            // Check if this bottle belongs to user
+                            if (donationIds.includes(bottle.sender_donation_id) || 
+                                donationIds.includes(bottle.finder_donation_id)) {
+                                callback(payload);
+                            }
                         }
+                    } catch (error) {
+                        console.error('Error in bottle subscription filter:', error);
                     }
-                } catch (error) {
-                    console.error('Error in bottle subscription filter:', error);
                 }
-            }
-        )
-        .subscribe();
-}
+            )
+            .subscribe();
+    }
 }
