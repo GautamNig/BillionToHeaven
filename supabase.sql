@@ -1,5 +1,5 @@
 -- =============================================
--- COMPLETE DATABASE SETUP FOR BillionToHeaven
+-- COMPLETE DATABASE SETUP FOR BillionToHeaven - UPDATED
 -- Run this after database reset
 -- =============================================
 
@@ -49,10 +49,10 @@ CREATE TABLE bottle_queue_entries (
 );
 
 -- =============================================
--- MESSAGE BOTTLE SYSTEM TABLES
+-- MESSAGE BOTTLE SYSTEM TABLES - UPDATED
 -- =============================================
 
--- Message bottles table
+-- Message bottles table - ADDED REPLY TRACKING COLUMNS
 CREATE TABLE message_bottles (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     
@@ -72,6 +72,10 @@ CREATE TABLE message_bottles (
     bottle_color VARCHAR(20) DEFAULT 'blue',
     status VARCHAR(20) DEFAULT 'floating' CHECK (status IN ('floating', 'found', 'read', 'archived')),
     
+    -- Reply tracking columns
+    has_replies BOOLEAN DEFAULT false,
+    last_reply_at TIMESTAMP WITH TIME ZONE,
+    
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     found_at TIMESTAMP WITH TIME ZONE,
@@ -81,14 +85,17 @@ CREATE TABLE message_bottles (
     finder_donation_id UUID REFERENCES donations(id) ON DELETE SET NULL
 );
 
--- Bottle replies table (for Phase 5)
+-- Bottle replies table - ADDED UNIQUE CONSTRAINT
 CREATE TABLE bottle_replies (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     bottle_id UUID REFERENCES message_bottles(id) ON DELETE CASCADE,
     sender_donation_id UUID REFERENCES donations(id) ON DELETE SET NULL,
     message TEXT NOT NULL CHECK (char_length(message) <= 280),
     is_anonymous BOOLEAN DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- UNIQUE CONSTRAINT: Prevent multiple replies from same donor to same bottle
+    UNIQUE(bottle_id, sender_donation_id)
 );
 
 -- =============================================
@@ -127,10 +134,13 @@ CREATE INDEX idx_bottles_sender ON message_bottles(sender_donation_id);
 CREATE INDEX idx_bottles_finder ON message_bottles(finder_donation_id);
 CREATE INDEX idx_bottles_inventory ON message_bottles(inventory_id);
 CREATE INDEX idx_bottles_floating ON message_bottles(status, created_at) WHERE status = 'floating';
+CREATE INDEX idx_bottles_has_replies ON message_bottles(has_replies, sender_donation_id);
 
 -- Bottle replies indexes
 CREATE INDEX idx_replies_bottle ON bottle_replies(bottle_id);
 CREATE INDEX idx_replies_sender ON bottle_replies(sender_donation_id);
+-- Unique constraint already ensures uniqueness, but add composite index for better performance
+CREATE INDEX idx_replies_bottle_donor ON bottle_replies(bottle_id, sender_donation_id);
 
 -- Goals indexes
 CREATE INDEX idx_goals_name ON goals(goal_name);
@@ -145,7 +155,7 @@ VALUES ('default', 1000000000.00)
 ON CONFLICT (goal_name) DO NOTHING;
 
 -- =============================================
--- CREATE FUNCTIONS AND TRIGGERS
+-- CREATE FUNCTIONS AND TRIGGERS - UPDATED
 -- =============================================
 
 -- Create function to update updated_at timestamp
@@ -198,6 +208,50 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER set_bottle_queue_position 
 BEFORE INSERT ON bottle_queue_entries
 FOR EACH ROW EXECUTE FUNCTION set_queue_position();
+
+-- Function to update bottle when reply is added
+CREATE OR REPLACE FUNCTION update_bottle_on_reply()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Update the bottle to show it has replies
+    UPDATE message_bottles 
+    SET has_replies = true,
+        last_reply_at = NEW.created_at
+    WHERE id = NEW.bottle_id;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger to automatically update bottle when reply is added
+CREATE TRIGGER update_bottle_on_reply_insert 
+AFTER INSERT ON bottle_replies
+FOR EACH ROW EXECUTE FUNCTION update_bottle_on_reply();
+
+-- Function to prevent replying to own bottle
+CREATE OR REPLACE FUNCTION prevent_self_reply()
+RETURNS TRIGGER AS $$
+DECLARE
+    bottle_sender_id UUID;
+BEGIN
+    -- Get the sender donation ID from the bottle
+    SELECT sender_donation_id INTO bottle_sender_id
+    FROM message_bottles
+    WHERE id = NEW.bottle_id;
+    
+    -- Check if the reply sender is the same as bottle sender
+    IF bottle_sender_id = NEW.sender_donation_id THEN
+        RAISE EXCEPTION 'You cannot reply to your own bottle.';
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger to prevent self-replies
+CREATE TRIGGER prevent_self_reply_before_insert 
+BEFORE INSERT ON bottle_replies
+FOR EACH ROW EXECUTE FUNCTION prevent_self_reply();
 
 -- =============================================
 -- ENABLE ROW LEVEL SECURITY
@@ -315,3 +369,30 @@ SELECT
 FROM information_schema.columns c
 WHERE c.table_schema = 'public'
 ORDER BY c.table_name, c.ordinal_position;
+
+-- =============================================
+-- VERIFY CONSTRAINTS ARE WORKING
+-- =============================================
+
+-- Show constraints
+SELECT 
+    tc.table_name, 
+    tc.constraint_name, 
+    tc.constraint_type,
+    kcu.column_name
+FROM information_schema.table_constraints tc
+JOIN information_schema.key_column_usage kcu
+    ON tc.constraint_name = kcu.constraint_name
+WHERE tc.table_schema = 'public'
+    AND tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY')
+ORDER BY tc.table_name, tc.constraint_type;
+
+-- Show triggers
+SELECT 
+    event_object_table as table_name,
+    trigger_name,
+    event_manipulation as event,
+    action_statement
+FROM information_schema.triggers
+WHERE trigger_schema = 'public'
+ORDER BY table_name, trigger_name;
