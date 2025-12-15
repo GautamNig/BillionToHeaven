@@ -128,12 +128,6 @@ const DonationSidebar = ({
                     border: '1px solid rgba(255, 217, 61, 0.3)',
                     textAlign: 'center'
                 }}>
-                    <div style={{ color: '#ffd93d', fontSize: '20px', fontWeight: 'bold', marginBottom: '5px' }}>
-                        ${formatCurrency(totalMoney)}
-                    </div>
-                    <div style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '11px' }}>
-                        {UIStrings.GOAL.RAISED_OF_GOAL(formatCurrency(totalMoney), formatCurrency(currentGoal))}
-                    </div>
                     <div style={{
                         width: '100%',
                         height: '6px',
@@ -150,7 +144,7 @@ const DonationSidebar = ({
                             transition: 'width 0.5s ease'
                         }} />
                     </div>
-                    <div style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '10px', marginTop: '5px' }}>
+                    <div style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '15px', marginTop: '5px' }}>
                         {UIStrings.GOAL.PERCENT_FUNDED(formatPercentage(totalMoney, currentGoal))}
                     </div>
                 </div>
@@ -185,22 +179,6 @@ const DonationSidebar = ({
         }}>
             Create an account to donate, drop message bottles, and find bottles from other donors
         </div>
-        <button
-            onClick={() => window.location.reload()} // Or trigger auth modal
-            style={{
-                background: 'linear-gradient(135deg, #8a7fff, #6366f1)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '10px 20px',
-                fontSize: '13px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                width: '100%'
-            }}
-        >
-            Sign In with Google
-        </button>
     </div>
 ) : (
     // Show donation options only if user is logged in
@@ -224,11 +202,11 @@ const DonationSidebar = ({
                 />
 
                 {/* Bar Graph */}
-                <DonationBarGraph 
+                {/* <DonationBarGraph 
                     isExpanded={true}
                     refreshTrigger={graphRefreshTrigger}
                     allDonations={allDonations}
-                />
+                /> */}
             </div>
         </div>
     );
