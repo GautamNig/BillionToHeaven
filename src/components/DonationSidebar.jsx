@@ -1,9 +1,9 @@
 // src/components/DonationSidebar.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PayPalDonationButton from './PayPalDonationButton';
 import DonationHistoryItem from './DonationHistoryItem';
-import DonationBarGraph from './DonationBarGraph';
 import { UIStrings } from '../config/uiStrings';
+import { supabase } from '../lib/supabase';
 
 const DonationSidebar = ({
     isExpanded,
@@ -21,6 +21,11 @@ const DonationSidebar = ({
     const [customAmount, setCustomAmount] = useState('');
     const [showCustomInput, setShowCustomInput] = useState(false);
     const [showDonationHistory, setShowDonationHistory] = useState(false);
+    const [showWormGraph, setShowWormGraph] = useState(false);
+    const [donationHistoryData, setDonationHistoryData] = useState([]);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+    const [maxTotal, setMaxTotal] = useState(0);
+    const canvasRef = useRef(null);
 
     // Format large numbers with commas
     const formatCurrency = (amount) => {
@@ -30,11 +35,168 @@ const DonationSidebar = ({
         }).format(amount);
     };
 
-    // Format percentage
-    const formatPercentage = (current, goal) => {
-        const percentage = (current / goal) * 100;
-        return Math.min(percentage, 100).toFixed(6);
+    // Fetch donation history for the graph
+    const fetchDonationHistoryForGraph = async () => {
+        const { data, error } = await supabase
+            .from('donations')
+            .select('created_at, amount')
+            .order('created_at', { ascending: true });
+        
+        if (error) {
+            console.error('Error fetching donation history:', error);
+            throw error;
+        }
+        return data || [];
     };
+
+    // Load donation history when modal opens
+    useEffect(() => {
+        const loadDonationHistory = async () => {
+            if (showWormGraph) {
+                setIsLoadingHistory(true);
+                try {
+                    const history = await fetchDonationHistoryForGraph();
+                    setDonationHistoryData(history);
+                    
+                    // Calculate max total for scaling
+                    let cumulative = 0;
+                    let max = 0;
+                    history.forEach(donation => {
+                        cumulative += parseFloat(donation.amount);
+                        if (cumulative > max) max = cumulative;
+                    });
+                    setMaxTotal(max);
+                    
+                } catch (error) {
+                    console.error('Error loading donation history:', error);
+                } finally {
+                    setIsLoadingHistory(false);
+                }
+            }
+        };
+
+        loadDonationHistory();
+    }, [showWormGraph]);
+
+    // Draw worm graph (cricket style) - REMOVED LABELS ONLY
+    const drawWormGraph = () => {
+        if (!canvasRef.current || !donationHistoryData.length) return;
+        
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        const padding = { top: 50, right: 40, bottom: 60, left: 60 };
+        const graphWidth = canvas.width - padding.left - padding.right;
+        const graphHeight = canvas.height - padding.top - padding.bottom;
+        
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Background
+        ctx.fillStyle = '#0a0a1a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Calculate cumulative data
+        let cumulativeTotal = 0;
+        const plotPoints = donationHistoryData.map((donation, index) => {
+            cumulativeTotal += parseFloat(donation.amount);
+            return {
+                x: padding.left + (index / (donationHistoryData.length - 1 || 1)) * graphWidth,
+                y: canvas.height - padding.bottom - (cumulativeTotal / maxTotal) * graphHeight,
+                cumulative: cumulativeTotal,
+                donation: parseFloat(donation.amount),
+                date: new Date(donation.created_at)
+            };
+        });
+        
+        // Draw grid (KEPT, but removed labels)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        
+        // Horizontal grid lines (KEPT, no labels)
+        const ySteps = 5;
+        for (let i = 0; i <= ySteps; i++) {
+            const y = canvas.height - padding.bottom - (i / ySteps) * graphHeight;
+            ctx.beginPath();
+            ctx.moveTo(padding.left, y);
+            ctx.lineTo(canvas.width - padding.right, y);
+            ctx.stroke();
+        }
+        
+        // Vertical grid lines (KEPT, no labels)
+        const xSteps = Math.min(10, donationHistoryData.length - 1);
+        for (let i = 0; i <= xSteps; i++) {
+            const x = padding.left + (i / xSteps) * graphWidth;
+            ctx.beginPath();
+            ctx.moveTo(x, padding.top);
+            ctx.lineTo(x, canvas.height - padding.bottom);
+            ctx.stroke();
+        }
+        
+        // Draw worm line (KEPT)
+        ctx.beginPath();
+        ctx.moveTo(plotPoints[0].x, plotPoints[0].y);
+        
+        for (let i = 1; i < plotPoints.length; i++) {
+            ctx.lineTo(plotPoints[i].x, plotPoints[i].y);
+        }
+        
+        ctx.strokeStyle = '#4a90e2';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        
+        // Draw data points (KEPT)
+        plotPoints.forEach((point, index) => {
+            // Small circle for each donation
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#4a90e2';
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            
+            // Highlight final point (KEPT, but removed label)
+            if (index === plotPoints.length - 1) {
+                // Larger circle for current total
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffd93d';
+                ctx.fill();
+                ctx.strokeStyle = '#ffd93d';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        });
+        
+        // Draw axes (KEPT, but removed labels)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 2;
+        
+        // Y-axis
+        ctx.beginPath();
+        ctx.moveTo(padding.left, padding.top);
+        ctx.lineTo(padding.left, canvas.height - padding.bottom);
+        ctx.stroke();
+        
+        // X-axis
+        ctx.beginPath();
+        ctx.moveTo(padding.left, canvas.height - padding.bottom);
+        ctx.lineTo(canvas.width - padding.right, canvas.height - padding.bottom);
+        ctx.stroke();
+        
+        // Graph title (KEPT)
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Donation Progress', canvas.width / 2, 30);
+    };
+
+    // Draw graph when data changes
+    useEffect(() => {
+        if (showWormGraph && donationHistoryData.length > 0) {
+            drawWormGraph();
+        }
+    }, [showWormGraph, donationHistoryData, maxTotal]);
 
     if (!isExpanded) {
         return (
@@ -75,6 +237,8 @@ const DonationSidebar = ({
             </div>
         );
     }
+
+    const percentageFunded = (totalMoney / currentGoal) * 100;
 
     return (
         <div style={{
@@ -120,78 +284,85 @@ const DonationSidebar = ({
                 gap: '20px',
                 overflowY: 'auto'
             }}>
-                {/* Total Raised */}
-                <div style={{
-                    background: 'rgba(255, 217, 61, 0.1)',
-                    padding: '15px',
-                    borderRadius: '10px',
-                    border: '1px solid rgba(255, 217, 61, 0.3)',
-                    textAlign: 'center'
-                }}>
+
+                {!user ? (
                     <div style={{
-                        width: '100%',
-                        height: '6px',
-                        background: 'rgba(255, 255, 255, 0.2)',
-                        borderRadius: '3px',
-                        marginTop: '8px',
-                        overflow: 'hidden'
+                        background: 'rgba(255, 215, 0, 0.1)',
+                        padding: '20px',
+                        borderRadius: '10px',
+                        border: '1px solid rgba(255, 215, 0, 0.3)',
+                        textAlign: 'center'
                     }}>
                         <div style={{
-                            width: `${Math.min((totalMoney / currentGoal) * 100, 100)}%`,
-                            height: '100%',
-                            background: 'linear-gradient(90deg, #ff6b6b, #ffd93d)',
-                            borderRadius: '3px',
-                            transition: 'width 0.5s ease'
-                        }} />
+                            fontSize: '24px',
+                            marginBottom: '10px'
+                        }}>
+                            🔒
+                        </div>
+                        <div style={{
+                            color: '#FFD93D',
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            marginBottom: '10px'
+                        }}>
+                            Sign in to Donate
+                        </div>
+                        <div style={{
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            fontSize: '12px',
+                            marginBottom: '15px',
+                            lineHeight: '1.4'
+                        }}>
+                            Create an account to donate, drop message bottles, and find bottles from other donors
+                        </div>
                     </div>
-                    <div style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '15px', marginTop: '5px' }}>
-                        {UIStrings.GOAL.PERCENT_FUNDED(formatPercentage(totalMoney, currentGoal))}
-                    </div>
-                </div>
+                ) : (
+                    // Show donation options only if user is logged in
+                    <DonationOptions 
+                        isClimbing={isClimbing}
+                        directionInputRef={directionInputRef}
+                        onDonationSuccess={onDonationSuccess}
+                        customAmount={customAmount}
+                        setCustomAmount={setCustomAmount}
+                        showCustomInput={showCustomInput}
+                        setShowCustomInput={setShowCustomInput}
+                    />
+                )}
 
-{!user ? (
-    <div style={{
-        background: 'rgba(255, 215, 0, 0.1)',
-        padding: '20px',
-        borderRadius: '10px',
-        border: '1px solid rgba(255, 215, 0, 0.3)',
-        textAlign: 'center'
-    }}>
-        <div style={{
-            fontSize: '24px',
-            marginBottom: '10px'
-        }}>
-            🔒
-        </div>
-        <div style={{
-            color: '#FFD93D',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            marginBottom: '10px'
-        }}>
-            Sign in to Donate
-        </div>
-        <div style={{
-            color: 'rgba(255, 255, 255, 0.7)',
-            fontSize: '12px',
-            marginBottom: '15px',
-            lineHeight: '1.4'
-        }}>
-            Create an account to donate, drop message bottles, and find bottles from other donors
-        </div>
-    </div>
-) : (
-    // Show donation options only if user is logged in
-    <DonationOptions 
-        isClimbing={isClimbing}
-        directionInputRef={directionInputRef}
-        onDonationSuccess={onDonationSuccess}
-        customAmount={customAmount}
-        setCustomAmount={setCustomAmount}
-        showCustomInput={showCustomInput}
-        setShowCustomInput={setShowCustomInput}
-    />
-)}
+                                {/* Progress Display */}
+                <div>
+                    {/* Worm Graph Button */}
+                    <button
+                        onClick={() => setShowWormGraph(true)}
+                        style={{
+                            background: 'linear-gradient(135deg, #4a90e2, #8a7fff)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '12px 20px',
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            transition: 'all 0.3s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            width: '100%'
+                        }}
+                        onMouseOver={(e) => {
+                            e.target.style.transform = 'translateY(-2px)';
+                            e.target.style.boxShadow = '0 8px 20px rgba(138, 127, 255, 0.3)';
+                        }}
+                        onMouseOut={(e) => {
+                            e.target.style.transform = 'translateY(0)';
+                            e.target.style.boxShadow = 'none';
+                        }}
+                    >
+                        <span>📈</span>
+                        View Donation Graph
+                    </button>
+                </div>
 
                 {/* Donation History */}
                 <DonationHistorySection 
@@ -200,14 +371,19 @@ const DonationSidebar = ({
                     showDonationHistory={showDonationHistory}
                     setShowDonationHistory={setShowDonationHistory}
                 />
-
-                {/* Bar Graph */}
-                {/* <DonationBarGraph 
-                    isExpanded={true}
-                    refreshTrigger={graphRefreshTrigger}
-                    allDonations={allDonations}
-                /> */}
             </div>
+
+            {/* Worm Graph Modal */}
+            {showWormGraph && (
+                <WormGraphModal
+                    isOpen={showWormGraph}
+                    onClose={() => setShowWormGraph(false)}
+                    totalMoney={totalMoney}
+                    donationHistoryData={donationHistoryData}
+                    isLoadingHistory={isLoadingHistory}
+                    canvasRef={canvasRef}
+                />
+            )}
         </div>
     );
 };
@@ -526,6 +702,173 @@ const DonationHistorySection = ({
                     </div>
                 </div>
             )}
+        </div>
+    );
+};
+
+// Worm Graph Modal Component - REMOVED LABELS ONLY
+const WormGraphModal = ({ 
+    isOpen, 
+    onClose, 
+    totalMoney,
+    donationHistoryData,
+    isLoadingHistory,
+    canvasRef
+}) => {
+    if (!isOpen) return null;
+    
+    // Calculate stats
+    const totalDonations = donationHistoryData.length;
+    const averageDonation = totalDonations > 0 ? totalMoney / totalDonations : 0;
+    
+    return (
+        <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.95)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            padding: '20px'
+        }}>
+            <div style={{
+                background: '#0a0a1a',
+                borderRadius: '12px',
+                padding: '20px',
+                width: '90%',
+                maxWidth: '800px',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                border: '1px solid rgba(74, 144, 226, 0.3)',
+                position: 'relative'
+            }}>
+                <button
+                    onClick={onClose}
+                    style={{
+                        position: 'absolute',
+                        top: '15px',
+                        right: '15px',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '30px',
+                        height: '30px',
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        cursor: 'pointer',
+                        fontSize: '16px'
+                    }}
+                >
+                    ×
+                </button>
+                
+                <h2 style={{ 
+                    color: 'white', 
+                    margin: '0 0 15px 0', 
+                    textAlign: 'center',
+                    fontSize: '20px'
+                }}>
+                    Donation Progress Graph
+                </h2>
+                
+                <div style={{
+                    background: 'rgba(0, 0, 0, 0.3)',
+                    borderRadius: '8px',
+                    padding: '15px',
+                    marginBottom: '20px'
+                }}>
+                    {isLoadingHistory ? (
+                        <div style={{ 
+                            textAlign: 'center', 
+                            color: 'rgba(255, 255, 255, 0.6)', 
+                            padding: '50px' 
+                        }}>
+                            Loading graph data...
+                        </div>
+                    ) : donationHistoryData.length === 0 ? (
+                        <div style={{ 
+                            textAlign: 'center', 
+                            color: 'rgba(255, 255, 255, 0.6)', 
+                            padding: '50px' 
+                        }}>
+                            No donation data available yet
+                        </div>
+                    ) : (
+                        <>
+                            <canvas
+                                ref={canvasRef}
+                                width={700}
+                                height={400}
+                                style={{
+                                    width: '100%',
+                                    height: '400px',
+                                    borderRadius: '5px',
+                                    background: '#0a0a1a'
+                                }}
+                            />
+                            {/* Timeline markers - REMOVED DATES */}
+                            <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                marginTop: '15px',
+                                fontSize: '12px',
+                                color: 'rgba(255, 255, 255, 0.6)'
+                            }}>
+                                <span>Start</span>
+                                <span>Current</span>
+                            </div>
+                        </>
+                    )}
+                </div>
+                
+                {/* Simple Stats (KEPT - this is outside the graph) */}
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    gap: '10px'
+                }}>
+                    <div style={{
+                        background: 'rgba(74, 144, 226, 0.1)',
+                        borderRadius: '8px',
+                        padding: '15px',
+                        textAlign: 'center'
+                    }}>
+                        <div style={{ color: '#4a90e2', fontSize: '18px', fontWeight: 'bold' }}>
+                            {totalDonations}
+                        </div>
+                        <div style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '12px' }}>
+                            Donations
+                        </div>
+                    </div>
+            
+                    
+                </div>
+                
+                {/* Close Button */}
+                <div style={{
+                    marginTop: '20px',
+                    display: 'flex',
+                    justifyContent: 'center'
+                }}>
+                    <button
+                        onClick={onClose}
+                        style={{
+                            background: 'rgba(255, 255, 255, 0.1)',
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            border: '1px solid rgba(255, 255, 255, 0.3)',
+                            borderRadius: '6px',
+                            padding: '8px 20px',
+                            fontSize: '14px',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };

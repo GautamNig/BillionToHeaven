@@ -1,6 +1,3 @@
-// src/components/MainLayout.jsx - UPDATED WITH PROPER VIEWED TRACKING
-import React, { useState, useEffect } from 'react';
-import RiveAnimation from './RiveAnimation';
 import { UIStrings } from '../config/uiStrings';
 import useAuth from '../hooks/useAuth';
 import { AuthService } from '../lib/auth';
@@ -10,6 +7,10 @@ import BottleInboxTab from './BottleInboxTab';
 import SentBottlesTab from './SentBottlesTab';
 import { MessageBottleService } from '../lib/messageBottleService';
 import { supabase } from '../lib/supabase';
+import InspirationTab from './InspirationTab';
+import React, { useState, useEffect } from 'react';
+import RiveAnimation from './RiveAnimation';
+
 
 const MainLayout = () => {
     const [activeTab, setActiveTab] = useState('animation');
@@ -17,6 +18,8 @@ const MainLayout = () => {
     const [showSentBottles, setShowSentBottles] = useState(false);
     const [unreadRepliesCount, setUnreadRepliesCount] = useState(0);
     const [viewedBottleIds, setViewedBottleIds] = useState(new Set()); // Track viewed bottles
+    // Add state for the tab:
+    const [showInspirationTab, setShowInspirationTab] = useState(false);
 
     const { user, signOut } = useAuth();
 
@@ -39,19 +42,19 @@ const MainLayout = () => {
     // Function to load reply counts - ONLY count unviewed bottles with replies
     const loadReplyCounts = async () => {
         if (!user) return;
-        
+
         try {
             const bottles = await MessageBottleService.getUserBottles(user.id);
             const sentBottles = bottles.sent || [];
-            
+
             // Count only bottles with replies that haven't been viewed yet
-            const newRepliesCount = sentBottles.filter(b => 
+            const newRepliesCount = sentBottles.filter(b =>
                 b.has_replies && !viewedBottleIds.has(b.id)
             ).length;
-            
+
             setUnreadRepliesCount(newRepliesCount);
             console.log(`📊 Badge count: ${newRepliesCount} (${sentBottles.filter(b => b.has_replies).length} total with replies, ${viewedBottleIds.size} viewed)`);
-            
+
         } catch (error) {
             console.error('Error loading reply counts:', error);
         }
@@ -68,7 +71,7 @@ const MainLayout = () => {
             console.log(`✅ Marked bottle ${bottleId} as viewed. Total viewed: ${newSet.size}`);
             return newSet;
         });
-        
+
         // Reload counts after marking as viewed
         setTimeout(loadReplyCounts, 100); // Small delay to ensure state updates
     };
@@ -77,7 +80,7 @@ const MainLayout = () => {
     useEffect(() => {
         if (user) {
             loadReplyCounts();
-            
+
             // Subscribe to reply updates
             const subscription = supabase
                 .channel('reply-counts-updates')
@@ -107,7 +110,7 @@ const MainLayout = () => {
                     }
                 )
                 .subscribe();
-            
+
             return () => subscription.unsubscribe();
         }
     }, [user]);
@@ -183,7 +186,7 @@ const MainLayout = () => {
                         <button
                             onClick={() => setActiveTab('animation')}
                             style={{
-                                background: activeTab === 'animation' 
+                                background: activeTab === 'animation'
                                     ? 'linear-gradient(135deg, #FFD93D, #FF6B6B)'
                                     : 'rgba(255, 255, 255, 0.1)',
                                 color: activeTab === 'animation' ? 'white' : 'rgba(255, 255, 255, 0.7)',
@@ -198,6 +201,35 @@ const MainLayout = () => {
                         >
                             🎮 Watch NuNu Climb
                         </button>
+                        {/* NEW INSPIRATION BUTTON */}
+                        <button
+                            onClick={() => setShowInspirationTab(true)}
+                            style={{
+                                background: showInspirationTab
+                                    ? 'linear-gradient(135deg, #6bcf7f, #4a90e2)'
+                                    : 'rgba(255, 255, 255, 0.1)',
+                                color: showInspirationTab ? 'white' : 'rgba(255, 255, 255, 0.7)',
+                                border: 'none',
+                                borderRadius: '10px',
+                                padding: '10px 20px',
+                                fontSize: '14px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                transition: 'all 0.3s ease'
+                            }}
+                            onMouseOver={(e) => {
+                                if (!showInspirationTab) {
+                                    e.target.style.background = 'rgba(107, 207, 127, 0.2)';
+                                }
+                            }}
+                            onMouseOut={(e) => {
+                                if (!showInspirationTab) {
+                                    e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                                }
+                            }}
+                        >
+                            💫 Why Donate?
+                        </button>
                     </div>
 
                     {/* Auth Buttons in Main Header */}
@@ -208,13 +240,13 @@ const MainLayout = () => {
                             gap: '12px'
                         }}>
                             {/* Notification Bell */}
-                            <NotificationBell 
-                                onOpenInbox={handleOpenBottleInbox} 
+                            <NotificationBell
+                                onOpenInbox={handleOpenBottleInbox}
                             />
-                            
+
                             {/* Bottle Inventory */}
                             <BottleInventory />
-                            
+
                             {/* Sent Bottles Button with Badge */}
                             <div style={{ position: 'relative' }}>
                                 <button
@@ -265,7 +297,7 @@ const MainLayout = () => {
                                     )}
                                 </button>
                             </div>
-                            
+
                             {/* User Info */}
                             <div style={{
                                 background: 'rgba(107, 207, 127, 0.2)',
@@ -375,7 +407,7 @@ const MainLayout = () => {
                 isOpen={showBottleInbox}
                 onClose={() => setShowBottleInbox(false)}
             />
-            
+
             {/* Sent Bottles Tab */}
             <SentBottlesTab
                 isOpen={showSentBottles}
@@ -386,6 +418,10 @@ const MainLayout = () => {
                 }}
                 onBottleViewed={markBottleAsViewed}
                 user={user}
+            />
+            <InspirationTab
+                isOpen={showInspirationTab}
+                onClose={() => setShowInspirationTab(false)}
             />
         </div>
     );
